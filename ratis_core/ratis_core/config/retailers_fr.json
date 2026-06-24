@@ -1,0 +1,224 @@
+[
+  {
+    "canonical_name": "Carrefour",
+    "slug": "carrefour",
+    "color_hex": "#1D499F",
+    "aliases": ["carrefour", "carrefour hyper", "carrefour hypermarché", "crf", "carref"]
+  },
+  {
+    "canonical_name": "Carrefour Market",
+    "slug": "carrefour-market",
+    "parent_slug": "carrefour",
+    "aliases": ["carrefour market", "carrefour mkt", "carrefour-market", "crf market", "cmkt"]
+  },
+  {
+    "canonical_name": "Carrefour City",
+    "slug": "carrefour-city",
+    "parent_slug": "carrefour",
+    "aliases": ["carrefour city", "carrefour-city", "crf city"]
+  },
+  {
+    "canonical_name": "Carrefour Express",
+    "slug": "carrefour-express",
+    "parent_slug": "carrefour",
+    "aliases": ["carrefour express", "carrefour exp", "crf express"]
+  },
+  {
+    "canonical_name": "Carrefour Contact",
+    "slug": "carrefour-contact",
+    "parent_slug": "carrefour",
+    "aliases": ["carrefour contact"]
+  },
+  {
+    "canonical_name": "Carrefour Bio",
+    "slug": "carrefour-bio",
+    "parent_slug": "carrefour",
+    "aliases": ["carrefour bio"]
+  },
+  {
+    "canonical_name": "E.Leclerc",
+    "slug": "leclerc",
+    "color_hex": "#0066B3",
+    "aliases": ["leclerc", "e.leclerc", "e leclerc", "centre leclerc", "leclerc hyper"]
+  },
+  {
+    "canonical_name": "E.Leclerc Drive",
+    "slug": "leclerc-drive",
+    "parent_slug": "leclerc",
+    "aliases": ["leclerc drive", "e.leclerc drive", "leclerc-drive"]
+  },
+  {
+    "canonical_name": "E.Leclerc Express",
+    "slug": "leclerc-express",
+    "parent_slug": "leclerc",
+    "aliases": ["leclerc express", "e.leclerc express"]
+  },
+  {
+    "canonical_name": "Auchan",
+    "slug": "auchan",
+    "color_hex": "#E2001A",
+    "aliases": ["auchan", "auchan hyper", "auchan hypermarché", "auchan supermarché"]
+  },
+  {
+    "canonical_name": "Auchan Supermarché",
+    "slug": "auchan-supermarche",
+    "parent_slug": "auchan",
+    "aliases": ["auchan supermarché", "auchan supermarche", "simply market", "simply"]
+  },
+  {
+    "canonical_name": "Auchan Piéton",
+    "slug": "auchan-pieton",
+    "parent_slug": "auchan",
+    "aliases": ["auchan piéton", "auchan pieton"]
+  },
+  {
+    "canonical_name": "Intermarché",
+    "slug": "intermarche",
+    "color_hex": "#E2001A",
+    "aliases": ["intermarché", "intermarche", "inter", "itm", "intermarché hyper", "intermarché super"]
+  },
+  {
+    "canonical_name": "Intermarché Contact",
+    "slug": "intermarche-contact",
+    "parent_slug": "intermarche",
+    "aliases": ["intermarché contact", "intermarche contact", "itm contact"]
+  },
+  {
+    "canonical_name": "Intermarché Express",
+    "slug": "intermarche-express",
+    "parent_slug": "intermarche",
+    "aliases": ["intermarché express", "intermarche express", "itm express"]
+  },
+  {
+    "canonical_name": "Netto",
+    "slug": "netto",
+    "parent_slug": "intermarche",
+    "color_hex": "#E30613",
+    "aliases": ["netto"]
+  },
+  {
+    "canonical_name": "Super U",
+    "slug": "super-u",
+    "color_hex": "#E4002B",
+    "aliases": ["super u", "super-u", "magasin u", "u super"]
+  },
+  {
+    "canonical_name": "Hyper U",
+    "slug": "hyper-u",
+    "parent_slug": "super-u",
+    "aliases": ["hyper u", "hyper-u", "u hyper"]
+  },
+  {
+    "canonical_name": "U Express",
+    "slug": "u-express",
+    "parent_slug": "super-u",
+    "aliases": ["u express", "u-express"]
+  },
+  {
+    "canonical_name": "Marché U",
+    "slug": "marche-u",
+    "parent_slug": "super-u",
+    "aliases": ["marché u", "marche u"]
+  },
+  {
+    "canonical_name": "Monoprix",
+    "slug": "monoprix",
+    "color_hex": "#E2001A",
+    "aliases": ["monoprix", "monop", "monop'", "mono"]
+  },
+  {
+    "canonical_name": "Monop'",
+    "slug": "monop",
+    "parent_slug": "monoprix",
+    "aliases": ["monop daily", "monop'"]
+  },
+  {
+    "canonical_name": "Naturalia",
+    "slug": "naturalia",
+    "parent_slug": "monoprix",
+    "color_hex": "#7BB228",
+    "aliases": ["naturalia"]
+  },
+  {
+    "canonical_name": "Franprix",
+    "slug": "franprix",
+    "color_hex": "#E30613",
+    "aliases": ["franprix", "frp"]
+  },
+  {
+    "canonical_name": "Casino",
+    "slug": "casino",
+    "color_hex": "#E2001A",
+    "aliases": ["casino", "casino supermarchés", "petit casino", "casino shop", "casino shopping"]
+  },
+  {
+    "canonical_name": "Géant Casino",
+    "slug": "geant-casino",
+    "parent_slug": "casino",
+    "aliases": ["géant casino", "geant casino", "geant"]
+  },
+  {
+    "canonical_name": "Leader Price",
+    "slug": "leader-price",
+    "color_hex": "#E2001A",
+    "aliases": ["leader price", "leader-price"]
+  },
+  {
+    "canonical_name": "Cora",
+    "slug": "cora",
+    "color_hex": "#D40000",
+    "aliases": ["cora", "cora hyper", "cora hypermarché"]
+  },
+  {
+    "canonical_name": "Match",
+    "slug": "match",
+    "aliases": ["match", "supermarché match", "supermarche match"]
+  },
+  {
+    "canonical_name": "Grand Frais",
+    "slug": "grand-frais",
+    "color_hex": "#E2001A",
+    "aliases": ["grand frais", "grand-frais"]
+  },
+  {
+    "canonical_name": "Lidl",
+    "slug": "lidl",
+    "color_hex": "#0050AA",
+    "aliases": ["lidl"]
+  },
+  {
+    "canonical_name": "Aldi",
+    "slug": "aldi",
+    "color_hex": "#00549F",
+    "aliases": ["aldi"]
+  },
+  {
+    "canonical_name": "Colruyt",
+    "slug": "colruyt",
+    "color_hex": "#BF0A30",
+    "aliases": ["colruyt"]
+  },
+  {
+    "canonical_name": "Picard",
+    "slug": "picard",
+    "color_hex": "#004B87",
+    "aliases": ["picard", "picard surgelés", "picard surgeles"]
+  },
+  {
+    "canonical_name": "Bio c' Bon",
+    "slug": "bio-c-bon",
+    "parent_slug": "carrefour",
+    "aliases": ["bio c' bon", "bio c bon", "bio cbon"]
+  },
+  {
+    "canonical_name": "La Vie Claire",
+    "slug": "la-vie-claire",
+    "aliases": ["la vie claire", "vie claire"]
+  },
+  {
+    "canonical_name": "Biocoop",
+    "slug": "biocoop",
+    "color_hex": "#5BA344",
+    "aliases": ["biocoop", "bio coop"]
+  }
+]

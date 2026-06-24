@@ -1,0 +1,74 @@
+# ============================================================
+# Root .dockerignore — governs the build context for every image
+# built from the repo root (the 5 services + migrations + batch).
+# Docker only reads a .dockerignore at the *context root*; since all
+# these builds use `context: .`, this single file is authoritative.
+# (The db/ image uses `context: ./db` and ships its own .dockerignore.)
+#
+# Goal: keep the daemon context small and free of secrets / VCS / caches.
+# Anything excluded here is never sent to the Docker daemon, so it can
+# neither bloat the build nor leak into a layer.
+# ============================================================
+
+# --- Version control & agent/editor metadata ---------------------------------
+.git
+.gitignore
+.gitattributes
+.github
+.claude
+.cursor
+.vscode
+.idea
+.worktrees
+
+# --- Secrets & local env (NEVER ship these into an image) --------------------
+# Exclude every .env variant…
+**/.env
+**/.env.*
+# …but keep the committed, secret-free templates so build-time tooling and
+# documentation references resolve. The negation must come AFTER the broad rule.
+!**/.env.example
+!.env.prod.example
+**/secrets/
+**/*.pem
+**/credentials.json
+
+# --- Python caches & build artifacts -----------------------------------------
+**/__pycache__
+**/*.py[cod]
+**/*.pyo
+**/.venv
+**/venv
+**/*.egg-info
+**/dist
+**/build
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+
+# --- Node / Expo client (never part of a backend image) ----------------------
+**/node_modules
+ratis_client
+
+# --- Terraform / IaC state (may contain plaintext secrets) -------------------
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+
+# --- Documentation & local-only journals -------------------------------------
+# Not needed at runtime. Keep the top-level README so an image that wants a
+# project blurb (or a registry "source" link) still has it.
+docs
+**/*.md
+!README.md
+
+# --- Tests (not needed at runtime; --no-dev already skips their deps) ---------
+**/tests
+**/.tox
+
+# --- Misc local noise --------------------------------------------------------
+**/.DS_Store
+**/*.log
+**/.ipynb_checkpoints

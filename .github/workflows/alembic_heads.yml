@@ -1,0 +1,82 @@
+name: alembic_heads
+
+# Anti-recidive guard for the "Multiple head revisions" failure mode.
+#
+# The repo is on the free GitHub plan (no branch protection), so PRs are
+# merged from branches that never saw each other. When two PRs each add a
+# migration branching off the SAME parent, `main` ends up with two alembic
+# heads and `alembic upgrade head` fails for EVERY subsequent PR.
+#
+# This job catches the situation BEFORE merge. It does not just run
+# `alembic heads` on the branch in isolation (that always shows a single
+# head — the branch only contains its own migration). Instead it overlays
+# the migration files that exist on `origin/main` but not on the current
+# branch, reconstructing the post-merge revision graph, and then asserts
+# exactly one head. That is the graph `main` will actually have once this
+# PR is merged.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "alembic/**"
+      - "alembic.ini"
+      - ".github/workflows/alembic_heads.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  alembic-single-head:
+    name: Single alembic head (post-merge graph)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Assert exactly one alembic head on the post-merge graph
+        run: |
+          set -euo pipefail
+          git fetch origin main
+
+          # Overlay every migration present on origin/main but absent on this
+          # branch. This rebuilds the revision graph `main` will have after
+          # this PR merges — the only graph that matters for the dual-head bug.
+          overlaid=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if [ ! -e "$f" ]; then
+              git checkout origin/main -- "$f"
+              echo "overlaid from origin/main: $f"
+              overlaid=$((overlaid + 1))
+            fi
+          done < <(git ls-tree -r --name-only origin/main -- alembic/versions/)
+          echo "overlaid $overlaid migration file(s) from origin/main"
+
+          count=$(uv run alembic heads 2>/dev/null | grep -cE '\(head\)' || true)
+          echo "alembic head count (post-merge graph) = $count"
+
+          if [ "$count" -ne 1 ]; then
+            echo "::error::alembic has $count heads after merging with origin/main (expected 1)."
+            echo "This branch's migration shares a parent with another migration" >&2
+            echo "already on main, which produces a 'Multiple head revisions'" >&2
+            echo "failure and blocks CI for every PR." >&2
+            echo "" >&2
+            echo "Fix one of:" >&2
+            echo "  - re-parent the new migration's down_revision onto the" >&2
+            echo "    current head of main, OR" >&2
+            echo "  - add a merge revision: 'uv run alembic merge heads'" >&2
+            uv run alembic heads 2>/dev/null || true
+            exit 1
+          fi
+          echo "OK — single alembic head."

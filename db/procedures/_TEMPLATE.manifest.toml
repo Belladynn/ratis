@@ -1,0 +1,66 @@
+# _TEMPLATE.manifest.toml — gabarit du manifeste sidecar d'une procedure support.
+#
+# COPIER ce fichier sous db/procedures/support_<verbe>_<objet>.manifest.toml
+# (cote a cote avec son .sql) et adapter. Ce fichier-ci est IGNORE (prefixe `_`) :
+# ni catalogue, ni applique, ni verifie.
+#
+# Contrat (cf. docs/superpowers/specs/2026-05-19-db-pipeline-hsp1-catalogue-design.md) :
+#   * sidecar par procedure, validation Pydantic au chargement
+#   * `direction` : credit | debit | link | unlink | fix | set
+#   * `money_tier` : direct | cab | non_money
+#   * `[[args]].type` : type Postgres bare (uuid, integer, bigint, text, ...)
+#   * `[[affects]].op` : insert | update | delete
+
+# --- Identite ---
+name        = "<TODO: support_verbe_objet>"
+purpose     = "<TODO: une ligne descriptive — meme contenu que le COMMENT ON PROCEDURE>"
+
+# --- Accessibilite & sensibilite ---
+# facing=true  : invocable par l'agent (menu)
+# facing=false : helper interne, jamais expose a l'agent (mais meme flow human-gated)
+facing      = true
+
+# Vocabulaire controle — un fork interne dependant d'un argument est INTERDIT
+# (deux cas distincts -> deux procedures).
+direction   = "<TODO: credit | debit | link | unlink | fix | set>"
+
+# direct     = touche cashback (argent direct) — exige HSP3 gate humain systematique
+# cab        = touche CAB seulement
+# non_money  = aucune table monetaire (link, fix, ...)
+money_tier  = "<TODO: direct | cab | non_money>"
+
+# --- Arguments (ordre = signature CREATE PROCEDURE) ---
+[[args]]
+name      = "<TODO: p_xxx>"
+type      = "<TODO: uuid | integer | bigint | text | ...>"
+required  = true
+# Optionnel — bornes per-call. Les caps temporels (par user / jour) vivent ailleurs (HSP2).
+# min       = 1
+# max       = 10000
+
+[[args]]
+name      = "<TODO: p_yyy>"
+type      = "<TODO: ...>"
+required  = true
+
+# --- Effet attendu — le « checksum » ---
+# Chaque table touchee par le .sql doit etre declaree ici. Le verifier rejette
+# toute table non-listee (defense ② du modele V1.1).
+# `rows` est confronte EMPIRIQUEMENT a l'execution (HSP2 change-log) ; le verifier
+# statique ne le verifie pas.
+[[affects]]
+table   = "<TODO: nom_table>"
+op      = "<TODO: insert | update | delete>"
+rows    = 1
+columns = ["<TODO: col1>", "<TODO: col2>"]  # informationnel, optionnel
+
+[[affects]]
+table   = "<TODO: autre_table>"
+op      = "<TODO: ...>"
+rows    = 1
+
+# HSP3 — trust level + allowed callers (cf docs/superpowers/specs/2026-05-20-db-pipeline-hsp3-human-gate-design.md §M5).
+# Toujours "manual" au merge (le gate humain s'applique). Graduation = proposition.
+trust_level_initial = "manual"
+# Identité agent autorisée à proposer cette procédure (HSP4 enforce).
+allowed_callers = ["<TODO: caller identity>"]

@@ -1,0 +1,117 @@
+#cloud-config
+# ============================================================
+# Ratis — Bootstrap Hetzner VM au premier démarrage
+# ============================================================
+# Injecté via `hcloud server create --user-data-from-file`.
+# Cloud-init exécute ce fichier au boot initial, idempotent.
+# Attendre ~3-5min après "Server created" pour que tout soit installé.
+# Vérif que c'est fini : SSH puis `cat /var/log/ratis-bootstrap-done`.
+# ============================================================
+
+timezone: Europe/Paris
+locale: en_US.UTF-8
+preserve_hostname: false
+hostname: ratis-prod-01
+fqdn: ratis-prod-01
+
+# bootcmd s'exécute AVANT write_files, à chaque boot. Garantit que
+# /root/.ssh existe avec les perms 700 quand write_files dépose
+# authorized_keys — sinon sshd rejette à cause de StrictModes même si
+# le fichier authorized_keys lui-même est en 600.
+# Bug rencontré en alpha 2026-04-25 : sans ça, l'écriture write_files
+# de /root/.ssh/authorized_keys échouait silencieusement, SSH par clé
+# refusait, et fallait passer par un SSH password manuel pour dépanner.
+bootcmd:
+  - mkdir -p /root/.ssh
+  - chmod 700 /root/.ssh
+  - chown root:root /root/.ssh
+
+package_update: true
+package_upgrade: true
+
+# Packages: Docker stack + sécurité + outillage de base.
+# Caddy n'est PAS installé sur l'hôte — on le lance via docker-compose.prod.yml.
+packages:
+  - docker.io
+  - docker-compose-v2
+  - ufw
+  - fail2ban
+  - unattended-upgrades
+  - git
+  - curl
+  - htop
+  - jq
+  - ca-certificates
+
+write_files:
+  # SSH — déploiement déterministe de la clé root.
+  # Méthode write_files plus fiable que users:ssh_authorized_keys ou --ssh-key Hetzner
+  # qui n'ont pas marché lors du déploiement alpha 2026-04-25.
+  - path: /root/.ssh/authorized_keys
+    content: |
+      ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPC54oLR+MkiVMM1SncVcAhkfssc69UwBQd2Jz+6PbOq ratis-hetzner-v0
+    permissions: "0600"
+    owner: "root:root"
+
+  # fail2ban — protection SSH basique. Tolérant pendant la phase debug initiale,
+  # ignoreip exempte les réseaux RFC1918 + l'IP fixe du domicile pour éviter
+  # les self-ban pendant le bootstrap. À durcir post-alpha (maxretry=5, retire ignoreip 82.x).
+  - path: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = 10m
+      findtime = 10m
+      maxretry = 50
+      backend = systemd
+      ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 82.64.219.47
+      [sshd]
+      enabled = true
+    permissions: "0644"
+
+  # unattended-upgrades — mises à jour sécurité auto quotidiennes
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+    permissions: "0644"
+
+  # Ratis deploy dir — git clone ira ici
+  - path: /opt/ratis/.keep
+    content: ""
+    permissions: "0644"
+
+runcmd:
+  # --- Swap 4GB (utile même sur 8 GB RAM pour absorber les pics PaddleOCR) ---
+  - fallocate -l 4G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - sh -c 'echo "/swapfile none swap sw 0 0" >> /etc/fstab'
+  # Tuning swap pour serveur (éviter swap sauf OOM)
+  - sh -c 'echo "vm.swappiness=10" >> /etc/sysctl.conf'
+  - sysctl -p
+
+  # --- UFW firewall (SSH + HTTP + HTTPS uniquement) ---
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp comment 'SSH'
+  - ufw allow 80/tcp comment 'HTTP (Caddy -> Let\''s Encrypt)'
+  - ufw allow 443/tcp comment 'HTTPS'
+  - ufw --force enable
+
+  # --- Services démarrés ---
+  - systemctl enable --now fail2ban
+  - systemctl enable --now docker
+  - systemctl enable --now unattended-upgrades
+
+  # --- Docker warmup (pull d'images de base en avance) ---
+  - docker pull postgres:16
+  - docker pull redis:7-alpine
+  - docker pull caddy:2-alpine
+
+  # --- Marqueur de fin pour savoir quand tout est prêt ---
+  - date -u +"%Y-%m-%dT%H:%M:%SZ" > /var/log/ratis-bootstrap-done
+  - echo "✅ Ratis bootstrap complete" >> /var/log/ratis-bootstrap-done
+
+final_message: "Ratis VM bootstrapée en $UPTIME secondes. Vérifie /var/log/ratis-bootstrap-done"

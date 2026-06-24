@@ -1,0 +1,72 @@
+{
+  "action": "regression",
+  "actor": {
+    "type": "user",
+    "id": "1",
+    "name": "Sentry"
+  },
+  "data": {
+    "event": {
+      "event_id": "def789abc012",
+      "fingerprint": [
+        "test-fingerprint-fatal-001"
+      ],
+      "level": "error",
+      "platform": "python",
+      "timestamp": 1715079000.0,
+      "title": "ValueError: invalid centimes",
+      "exception": {
+        "values": [
+          {
+            "type": "ValueError",
+            "value": "invalid centimes",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "webservices/ratis_product_analyser/worker/ocr/ocr_engine.py",
+                  "lineno": 142,
+                  "function": "parse_amount",
+                  "context_line": "    return int(round(Decimal(str(v)) * 100))"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "breadcrumbs": {
+        "values": [
+          {
+            "timestamp": 1715078990.0,
+            "category": "http",
+            "message": "POST /api/v1/scan",
+            "level": "info"
+          },
+          {
+            "timestamp": 1715078995.0,
+            "category": "celery",
+            "message": "task process_receipt enqueued",
+            "level": "info"
+          }
+        ]
+      },
+      "user": {
+        "id": "user-67890-hash",
+        "platform": "ios",
+        "app_version": "0.0.14"
+      },
+      "tags": [
+        ["environment", "production"],
+        ["service", "ratis_product_analyser"]
+      ],
+      "url": "https://sentry.io/organizations/ratis/issues/12345/",
+      "project": "ratis-webservices"
+    },
+    "issue": {
+      "id": "12345",
+      "shortId": "RATIS-WEBSERVICES-X1",
+      "project": {
+        "slug": "ratis-webservices"
+      }
+    }
+  }
+}

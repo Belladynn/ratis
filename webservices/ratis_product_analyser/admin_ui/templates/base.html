@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ratis Admin{% block title_suffix %}{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-slate-900 text-slate-100">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <span class="font-bold text-lg">Ratis Admin</span>
+        {% if session %}
+        <nav class="flex gap-4 text-sm">
+          <a href="/admin/ui/" class="hover:underline">Accueil</a>
+          <a href="/admin/ui/stores-pending" class="hover:underline">Stores pending</a>
+          <a href="/admin/ui/knowledge-queue" class="hover:underline">Knowledge OCR</a>
+          <a href="/admin/ui/audit-log" class="hover:underline">Audit log</a>
+          <a href="/admin/ui/db-approvals" class="hover:underline">Approbations DB</a>
+          <a href="/admin/ui/users/search" class="hover:underline">Utilisateurs</a>
+          <a href="/admin/ui/name-resolutions/queue" class="hover:underline">Arbitrage NRC</a>
+          <a href="/admin/ui/battlepass" class="hover:underline">Battle Pass</a>
+          <a href="/admin/ui/missions" class="hover:underline">Missions</a>
+          <a href="/admin/ui/skills" class="hover:underline">Skills</a>
+          <a href="/admin/ui/settings" class="hover:underline">Settings</a>
+        </nav>
+        {% endif %}
+      </div>
+      {% if session %}
+      <form method="post" action="/admin/ui/logout" class="flex items-center gap-3 text-sm">
+        <span class="opacity-80">opérateur : <strong>{{ session.operator }}</strong></span>
+        <button type="submit" class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded">Logout</button>
+      </form>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

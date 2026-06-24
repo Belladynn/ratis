@@ -1,0 +1,427 @@
+{
+  "consensus": {
+    "min_scans_to_create": 2,
+    "min_distinct_users": 2,
+    "window_size": 20,
+    "scan_weight_decay_per_day": 0.1,
+    "scan_weight_floor": 0.3,
+    "freeze_threshold_scans": 3,
+    "freeze_duration_hours": 24,
+    "decay_grace_days": 5,
+    "decay_rate_pct": 10,
+    "decay_floor": 30,
+    "price_quarantine_pct": 30,
+    "ticket_max_age_days": 7,
+    "globally_verified_threshold": 80,
+    "barcode_resolve_weight_factor": 0.5,
+    "emerging_consecutive_threshold": 4,
+    "emerging_old_weight": 0.15,
+    "batch_chunk_size": 1000,
+    "batch_max_workers": 8
+  },
+  "fuzzy": {
+    "max_edit_distance_per_word": 2,
+    "word_match_min_ratio": 0.7
+  },
+  "ocr": {
+    "max_file_size_mb": 10,
+    "image_retention_hours": 48,
+    "max_pdf_pages": 20,
+    "fuzzy_consensus_threshold": 0.65,
+    "parsing_total_tolerance": 0.05,
+    "min_block_confidence": 0.5,
+    "task_soft_time_limit_s": 240,
+    "task_time_limit_s": 300,
+    "max_image_pixels": 40000000
+  },
+  "label": {
+    "batch_max_images": 10
+  },
+  "type_detector": {
+    "receipt_min_prices": 4,
+    "receipt_date_prices": 3
+  },
+  "battle_pass": {
+    "duration_months": 3,
+    "reward_mid_eur": 5,
+    "reward_end_eur": 10
+  },
+  "knowledge": {
+    "token_min_length": 6,
+    "token_fuzzy_threshold": 0.7
+  },
+  "llm": {
+    "similarity_guard_threshold": 0.6
+  },
+  "subscription": {
+    "price_monthly_eur": 11.99,
+    "price_annual_eur": 11.99,
+    "success_url": "ratis://subscription/success",
+    "cancel_url": "ratis://subscription/cancel"
+  },
+  "savings": {
+    "subscription_price_cents": 799
+  },
+  "off_sync": {
+    "sources": {
+      "off": {
+        "api_base_url": "https://world.openfoodfacts.org"
+      },
+      "obp": {
+        "api_base_url": "https://world.openbeautyfacts.org"
+      },
+      "opf": {
+        "api_base_url": "https://world.openproductsfacts.org"
+      },
+      "opff": {
+        "api_base_url": "https://world.openpetfoodfacts.org"
+      }
+    }
+  },
+  "rewards": {
+    "cab_per_receipt_scan": 20,
+    "cab_per_label_scan": 3,
+    "cab_per_barcode_scan": 1,
+    "cab_per_product_identification": 1,
+    "cab_per_fill_product_field": 5,
+    "cab_per_scan_distinct": 0,
+    "cab_per_promo_found": 5,
+    "cab_referral_monthly": 500,
+    "cab_referral_annual": 750,
+    "cab_referral_signup_bonus": 150,
+    "cashback_boost_multiplier": 2,
+    "cashback_boost_cab_rate": 1.2,
+    "cashback_boost_window_hours": 12,
+    "cashback_min_withdrawal": 1000,
+    "cashback_pending_expiry_days": 90,
+    "diminishing_returns": {
+      "label_scan": {
+        "threshold_per_day": 20,
+        "multiplier_after": 0.5
+      },
+      "fill_product_field": {
+        "threshold_per_day": 10,
+        "multiplier_after": 0.5
+      }
+    }
+  },
+  "referral": {
+    "gift_card_amount_cents": 500,
+    "eligibility_delay_days": 30,
+    "gift_card_brand_id": null
+  },
+  "cashback": {
+    "webhook_providers": [
+      "affilae",
+      "awin",
+      "cj"
+    ],
+    "webhook_timestamp_tolerance_seconds": 300
+  },
+  "missions": {
+    "daily_count_per_difficulty": 1,
+    "weekly_count_per_difficulty": 1
+  },
+  "xp": {
+    "level_base": 100,
+    "xp_per_receipt_scan": 10,
+    "xp_per_label_scan": 8,
+    "xp_per_barcode_scan": 5,
+    "xp_per_product_identification": 5,
+    "xp_per_fill_product_field": 3,
+    "xp_per_scan_distinct": 0,
+    "xp_per_promo_found": 5,
+    "xp_per_price_compared": 3,
+    "xp_per_mission_completed": 10,
+    "xp_per_battlepass_milestone": 20,
+    "xp_per_referral": 50,
+    "xp_per_feed_jack": 5
+  },
+  "gamification": {
+    "stonks_contest": false,
+    "freeze_cost_cab": 100,
+    "feed_jack": {
+      "multiplier_per_day": 0.05,
+      "max_multiplier": 1.0,
+      "food_reserve_cost_cab": 50,
+      "max_food_reserves": 7
+    },
+    "buffer": {
+      "n_max_daily": 3,
+      "weekly_allowed": false,
+      "notif_lead_time_hours": 1
+    },
+    "burst": {
+      "cap_n_max": null,
+      "leaderboard_top_size": 50
+    }
+  },
+  "subscription_promotions": {
+    "active_codes": [],
+    "default_multiplier": 1.0
+  },
+  "store_validation": {
+    "min_distinct_eans_for_validation": 20,
+    "consensus_min_trust_score": 80,
+    "suspicious_after_months": 6,
+    "suspicious_threshold_eans": 30
+  },
+  "store_matching": {
+    "threshold_auto": 80,
+    "threshold_confirm": 40,
+    "header_lines": 8,
+    "fuzzy_address_min_similarity": 0.7,
+    "barcode_min_digits": 20,
+    "osm_resolver_timeout": 30,
+    "osm_resolver_min_score": 60,
+    "osm_resolver_postal_agreement_threshold": 0.8,
+    "threshold_suggest_min": 30,
+    "threshold_suggest_confirm": 40,
+    "retailer_header_min_similarity": 0.75,
+    "store_fuzzy_city_enabled": true
+  },
+  "osm_sync": {
+    "shop_types": [
+      "supermarket",
+      "convenience",
+      "bakery",
+      "butcher",
+      "greengrocer"
+    ],
+    "country_code": "FR",
+    "overpass_timeout": 120,
+    "batch_chunk_size": 500,
+    "dedup_radius_m": 50,
+    "fuzzy_threshold": 0.85
+  },
+  "gift_cards": {
+    "annual_subscription_denomination": 2000,
+    "annual_subscription_brand_id": "",
+    "battlepass_brand_id": "",
+    "annual_warning_threshold_cents": 30500,
+    "_doc_annual_warning_threshold_cents": "Seuil fiscal BNC français (305€) → modal warning UI 1×/an. cf ARCH_cab_economy.md § 305€."
+  },
+  "boutique": {
+    "ratio_cab_per_eur": 5000,
+    "cap_per_card_cents": 5000,
+    "cap_daily_cents": 10000,
+    "cap_weekly_cents": 30000,
+    "cap_annual_cents": 119900,
+    "allowed_denominations_cents": [
+      500,
+      1000,
+      2000,
+      5000
+    ],
+    "duplicate_order_window_seconds": 60
+  },
+  "mystery_product": {
+    "duration_days": 7,
+    "max_clues": 3,
+    "exclusion_window": 5,
+    "consensus_max_age_days": 90,
+    "default_reward_tiers": [
+      {
+        "min_rank": 1,
+        "max_rank": 1,
+        "cab": 500
+      },
+      {
+        "min_rank": 2,
+        "max_rank": 10,
+        "cab": 200
+      },
+      {
+        "min_rank": 11,
+        "max_rank": 100,
+        "cab": 100
+      },
+      {
+        "min_rank": 101,
+        "max_rank": 1000,
+        "cab": 50
+      },
+      {
+        "min_rank": 1001,
+        "max_rank": null,
+        "cab": 10
+      }
+    ]
+  },
+  "notifier": {
+    "retry_attempts": 3,
+    "retry_delay_seconds": 30,
+    "max_notifications_per_day": 10,
+    "quiet_hours_start": 22,
+    "quiet_hours_end": 8,
+    "expo_push_url": "https://exp.host/--/api/v2/push/send",
+    "expo_receipts_url": "https://exp.host/--/api/v2/push/getReceipts",
+    "push_receipt_batch_size": 1000,
+    "notification_types": {
+      "scan_done": {
+        "title": "Scan terminé",
+        "body": "Vos produits ont été identifiés."
+      },
+      "cashback_available": {
+        "title": "Cashback disponible",
+        "body": "Votre cashback est disponible au retrait."
+      },
+      "badge_unlocked": {
+        "title": "Badge débloqué",
+        "body": "Vous avez débloqué un nouveau badge !"
+      },
+      "price_alert": {
+        "title": "Alerte prix",
+        "body": "Un prix a changé sur un produit que vous suivez."
+      },
+      "route_ready": {
+        "title": "Itinéraire prêt",
+        "body": "Votre liste a été optimisée, votre itinéraire est disponible."
+      },
+      "store_validated": {
+        "title": "Magasin validé !",
+        "body": "Ton magasin {store_name} a été validé. {reconciled_count} scans débloqués."
+      },
+      "retro_cab_gratitude": {
+        "title": "Tes scans ont été validés !",
+        "body": "{scans_count} scans validés cette nuit, +{cab_total} CABs sur ton solde."
+      },
+      "achievement_unlocked": {
+        "title": "Trophée débloqué !",
+        "body": "{label} · +{cab_granted} CAB"
+      }
+    }
+  },
+  "list_optimiser": {
+    "min_items_per_store": 3,
+    "suggestion_min_receipts": 3,
+    "suggestion_frequency_threshold": 0.5,
+    "route_expiry_hours": 48,
+    "national_avg_min_datapoints": 5,
+    "osrm_timeout_seconds": 10,
+    "max_items_per_list": 100,
+    "max_stores_in_route": 4,
+    "max_quantity_per_item": 30,
+    "max_templates_per_user": 3,
+    "default_search_radius_km": 5,
+    "default_transport_mode": "driving",
+    "stuck_computing_threshold_minutes": 10
+  },
+  "pipeline": {
+    "log_level": "normal",
+    "jar": {
+      "monthly_subscription_price_cents": 999,
+      "_doc": "Prix abonnement Ratis mensuel en centimes. Définit le seuil 100% de la jauge JarPrestige (= prestige). Valeur par défaut 9.99€ à valider PO."
+    },
+    "anti_fraud": {
+      "_doc": "Anti-fraud receipt-pipeline V1 thresholds (validated PO 2026-05-11, cf ARCH_receipt_pipeline.md § Réconciliation tickets). PR1 shipped the DDL ; PR2 (2026-05-11) activated phash_* keys via the pipeline phase 0 hook in worker/receipt_task.py ; PR3 (2026-05-11) activated the dual fingerprint compute + UNIQUE intra-user rescan ; PR4 (2026-05-11) activated cross-user policy (fp_window_hours + fp_fuzzy_match_threshold), daily caps (receipts_max_per_day_per_user + receipts_soft_warn_per_day) and device-pattern (device_fp_*) via worker/pipeline/persist.py + fraud_lookup.py ; PR5 (2026-05-11) activated rescan_max_attempts via routes/scan.py::post_scan_receipt_rescan (UPDATE atomique WHERE rescan_attempts<:cap, gated par pipeline.enabled) + admin queue routes/admin/fraud_suspicions.py. SPRINT COMPLET. Toggle enable_phash_check=false to roll the PR2 hook back. fp_fuzzy_match_threshold=8 is the 10-component scheme : 8/10 exact + Levenshtein ≤ 1 on numeric components (cf fuzzy_match_intra_user). Rollout flip = operator-driven via pipeline.enabled (toujours false en prod au moment du sprint-close).",
+      "enable_phash_check": true,
+      "receipts_max_per_day_per_user": 14,
+      "receipts_soft_warn_per_day": 7,
+      "rescan_max_attempts": 3,
+      "phash_hamming_threshold": 8,
+      "phash_window_days": 30,
+      "fp_window_hours": 48,
+      "fp_fuzzy_match_threshold": 8,
+      "device_fp_distinct_users_threshold": 3,
+      "device_fp_window_days": 30
+    },
+    "promo_detection": {
+      "_doc": "Phase C-4 — regex layer detecting promo signals in raw OCR receipt text, post-comprehend. Bolt-on (does NOT modify the V3 LLM prompt or parsed_ticket schema). Fires one trigger_action(promo_found, quantity=N) per receipt where N = distinct signal count (dedup-by-pattern within a receipt). Enables 4 currently-ghost promo_found missions in the V1 catalogue (1 daily + 3 weekly). Patterns are Python regex compiled with re.IGNORECASE ; set enable=false to disable the entire detector without a code revert. Default 7 patterns cover Carrefour, Monoprix, Franprix shapes ; Auchan / Lidl variants out of scope until empirical tuning lands.",
+      "enable": true,
+      "patterns": [
+        "\\bpromo\\b",
+        "\\bremise\\b",
+        "\\br[ée]duction\\b",
+        "-\\s?\\d+(?:[,.]\\d+)?\\s?[€%]",
+        "\\boffre\\b",
+        "\\bsoldes?\\b",
+        "\\b[ée]conomies?\\b\\s*:?\\s*\\d+"
+      ]
+    }
+  },
+  "data_reconciliation": {
+    "ean_recovery": {
+      "lookback_days": 60,
+      "fuzzy_levenshtein_max": 2,
+      "fuzzy_similarity_min": 0.75,
+      "ocr_knowledge_auto_feed_confidence_min": 0.85
+    },
+    "store_mdd_vote": {
+      "min_majority_pct": 70,
+      "min_items_to_vote": 3
+    },
+    "price_disambiguate": {
+      "consensus_tolerance_pct": 10
+    },
+    "retro_cab": {
+      "max_lookback_hours": 48,
+      "notif_template": "retro_cab_gratitude"
+    }
+  },
+  "product_contributions": {
+    "_doc": "User-driven product field contributions (POST /api/v1/product/{ean}/contribute). max_per_day_per_user is a hard anti-spam cap : the (cap+1)-th contribution in the trailing 24h is rejected with HTTP 429 contribution_daily_cap_reached. Counted in services/product_contribute_service.py via repositories/product_contribute_repository.py.",
+    "max_per_day_per_user": 20
+  },
+  "sirene_sync": {
+    "ape_whitelist": [
+      "47.11A",
+      "47.11B",
+      "47.11C",
+      "47.11D",
+      "47.11E",
+      "47.11F",
+      "47.21Z",
+      "47.22Z",
+      "47.23Z",
+      "47.24Z",
+      "47.25Z",
+      "47.29Z",
+      "47.81Z"
+    ],
+    "holding_categories": [
+      "1000",
+      "6201",
+      "6202",
+      "6209",
+      "6420",
+      "6430",
+      "6499",
+      "6512",
+      "6520",
+      "7010"
+    ],
+    "geocode_min_score": 0.7,
+    "fuzzy_threshold": 0.85,
+    "dedup_radius_m": 50,
+    "bulk_cache_ttl_days": 30,
+    "geocode_cache_ttl_days": 90,
+    "batch_chunk_size": 5000
+  },
+  "name_resolution_consensus": {
+    "min_distinct_users": 3,
+    "validation_methods": [
+      "barcode",
+      "manual_admin"
+    ],
+    "validation_methods_receipt": [
+      "barcode",
+      "manual_admin"
+    ],
+    "validation_methods_esl": [
+      "esl",
+      "manual_admin"
+    ],
+    "convergence_threshold_pct": 80,
+    "min_top1_lead_factor": 2.0,
+    "admin_validation_weight": 5,
+    "fuzzy_label_max_len_diff": 2,
+    "fuzzy_label_min_similarity": 0.8,
+    "fuzzy_consensus_similarity_min": 0.8,
+    "fuzzy_consensus_len_diff_max": 2
+  },
+  "auth": {
+    "_doc": "ratis_auth account-creation kill-switch. registrations_open=false rejects NEW OAuth signups with HTTP 503 registrations_closed (gate in services/auth_service.py::_resolve_or_create_oauth_user, create branch only). Existing identities keep logging in (resolve branch is NOT gated). Default true = inscriptions ouvertes. Flip via admin settings (app_settings.auth) or this JSON fallback. cf ARCH_AUTH.md DA-46.",
+    "registrations_open": true
+  }
+}

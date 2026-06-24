@@ -1,0 +1,244 @@
+[project]
+name = "ratis"
+version = "0.1.0"
+description = "Ratis — cashback + real-time-price + gamification platform: FastAPI microservices, agentic AI ops, Terraform/AWS IaC"
+# Pinned <3.13 : paddlepaddle (pulled by PA OCR) ships no wheel for 3.13/3.14 (P02).
+# Matches .python-version (3.12). Do not widen without a paddleocr wheel.
+requires-python = ">=3.12,<3.13"
+readme = "README.md"
+dependencies = [
+    "alembic>=1.18.4",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.4",
+    "ratis-core",
+    "tenacity>=9.1.4",
+]
+
+[dependency-groups]
+dev = [
+    "playwright>=1.60.0",
+    "pytest>=9.0.3",
+    "pytest-timeout>=2.4.0",
+    "python-dotenv>=1.2.2",
+    "pyyaml>=6.0.3",
+    "ruff>=0.15.15",
+]
+# Seed-only dependencies (`scripts/seed/`) — installed in dev / CI workflows
+# that need to bootstrap the personas DB or regenerate barcodes.html. Kept
+# out of `dependencies` so production service images don't pull them.
+seed = [
+    "python-barcode>=0.16.1",
+]
+# Static type-checking toolchain. Installed only where the mypy gate runs
+# (pre-commit local hook + future CI typecheck job). `types-*` are the stub
+# packages mypy needs for third-party libs that ship no inline types.
+typecheck = [
+    "mypy>=1.18.2",
+    "types-pyyaml>=6.0.12",
+    "types-requests>=2.32.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "ratis_core",
+    "webservices/ratis_auth",
+    "webservices/ratis_product_analyser",
+    "batch/_shared",
+    "batch/ratis_batch_off_sync",
+    "batch/ratis_batch_consensus",
+    "batch/ratis_batch_purge",
+    "batch/ratis_batch_mystery_announce",
+    "webservices/ratis_notifier",
+    "webservices/ratis_rewards",
+    "batch/ratis_batch_reconciliation",
+    "batch/ratis_batch_data_reconciliation",
+    "batch/ratis_batch_osm_sync",
+    "webservices/ratis_list_optimiser",
+    "batch/ratis_batch_savings",
+    "batch/ratis_batch_referral_payout",
+    "batch/ratis_batch_achievements",
+    "batch/ratis_batch_vrac_seed",
+    "batch/ratis_batch_trust_score",
+    "batch/ratis_batch_origins_backfill",
+    "batch/ratis_batch_annual_reset",
+    "batch/ratis_batch_push_receipts",
+    "batch/ratis_batch_sirene_sync",
+    "webservices/ratis_migrations",
+    "tools/agent-mcp",
+]
+
+[tool.uv.sources]
+ratis-core = { workspace = true }
+
+[tool.bandit]
+# Exclude test directories — test code uses hardcoded credentials and dynamic
+# SQL helpers that legitimately trigger SAST rules.
+exclude_dirs = ["tests"]
+# Low-confidence findings are typically false positives (e.g. B608 on internal SQL builders).
+confidence_level = 2
+# B608 (hardcoded_sql_expressions) skipped globally : the codebase uses
+# SQLAlchemy `text()` + named `:bind_param` placeholders consistently. The 3
+# f-string SQL constructions in `matcher.find_candidates` only inject
+# numeric-indexed identifiers (`:brand_0`, `:flavor_0`, `:format_0`) into the
+# WHERE clause — user-controlled values flow through `params` dict and are
+# always bound by SQLAlchemy. Per-line `# nosec` doesn't work for multi-line
+# f-strings (bandit reports the f""" opening line, can't put a comment there).
+# Re-enable if we ever introduce raw user-string interpolation in SQL.
+skips = ["B608"]
+
+[tool.ruff]
+line-length = 120
+# Excluded from the linted surface (each has an independent lifecycle and is NOT
+# linted by CI today — keeping them out of `ruff check .` avoids churning code
+# the project doesn't own/ship as part of the service workspace):
+#   alembic/                     auto-generated migration boilerplate
+#   tools/drive-capture/         standalone price-scraping spike (own venv/tooling)
+#   infra/hermes/                Hermes ops-bot stack incl. vendored skill scripts
+#   **/claude-code-postmortem/   vendored Claude Code skill (3rd-party-style, dense)
+exclude = [
+    "alembic/",
+    "tools/drive-capture/",
+    "infra/hermes/",
+    "**/claude-code-postmortem/",
+]
+
+[tool.ruff.format]
+# Ruff is the canonical formatter for this repo (replaces black). Double quotes
+# match the existing codebase convention.
+quote-style = "double"
+
+[tool.ruff.lint]
+# Modern staple set. Beyond the original (E/F/DTZ/S/TD/SIM105/PT) we add:
+#   I   isort (import ordering)         B   flake8-bugbear (likely bugs)
+#   UP  pyupgrade (py3.12 idioms)       SIM full flake8-simplify
+#   C4  flake8-comprehensions          RUF ruff-native lints
+select = ["E", "F", "DTZ", "S", "TD", "SIM", "PT", "I", "B", "UP", "C4", "RUF"]
+ignore = [
+    "E402",    # intentional: load_dotenv before env-reading imports
+    "S101",    # assert — handled by per-file-ignores below
+    "S311",    # standard random — non-crypto use is fine
+    "S603",    # subprocess shell=False — legitimate in batch scripts
+    "S607",    # partial executable path — legitimate in batch scripts
+    "TD002",   # missing TODO author — out of scope for this project
+    "TD003",   # missing TODO issue link — out of scope for this project
+    "PT006",   # parametrize first arg as string is widely used and valid
+    # --- newly-selected rules tuned to avoid disproportionate legacy churn ---
+    "B008",    # function-call-in-default — FastAPI Depends/Query/Form idiom; the
+               # framework REQUIRES it. extend-immutable-calls below whitelists
+               # ours, but ignoring globally also covers batch CLIs using it.
+    "B904",    # raise-without-from-inside-except — 137 hits across legacy error
+               # paths; re-raising as HTTPException without `from` is idiomatic
+               # FastAPI and adds no info. Ratchet target, not a baseline blocker.
+    "RUF001",  # ambiguous-unicode (string)  — French copy legitimately uses
+    "RUF002",  # ambiguous-unicode (docstring)  accented chars + typographic
+    "RUF003",  # ambiguous-unicode (comment)    middots (·) throughout. Not bugs.
+    "SIM105",  # suppressible-exception (contextlib.suppress) — try/except/pass is
+               # clearer in several batch teardown paths; was never enabled before.
+    "SIM108",  # if-else -> ternary — readability is subjective; forces dense lines.
+    "UP037",   # quoted-annotation removal collides with deferred-eval patterns in
+               # some forward refs; low value, kept off to avoid churn.
+]
+
+# FastAPI dependency-injection markers are constant sentinels, not mutable
+# defaults — the canonical fix for B008 on framework code (belt-and-suspenders
+# with the B008 ignore above).
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Form",
+    "fastapi.File",
+    "fastapi.Security",
+    "fastapi.Cookie",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test idioms — not bugs in test code:
+#   SIM117  nested `with patch(...): with pytest.raises(...):` reads clearer than
+#           a single combined `with`; combining hurts test legibility.
+#   RUF043  `pytest.raises(match="...")` patterns are intentional literal
+#           substrings, not regexes — escaping them adds noise without value.
+"**/tests/**" = ["S", "DTZ", "SIM105", "SIM117", "RUF043"]
+"**/conftest.py" = ["S", "DTZ", "SIM105", "SIM117", "RUF043"]
+# SQLAlchemy 2.0 mapped models — UP rewrites BREAK ORM forward-refs:
+#   UP045/UP007 turn `Mapped[Optional["Foo"]]` into `Mapped["Foo" | None]`,
+#   which SQLAlchemy's annotation interpreter CANNOT parse (the `| None` runs at
+#   runtime against a string literal → MappedAnnotationError at mapper-config).
+#   The valid form is `Mapped["Foo | None"]` (whole union quoted). Disable the
+#   Optional→union rewrite here so the autofixer can't re-break the mappers; the
+#   non-string columns (`Mapped[int | None]`) are already PEP-604 and fine.
+"**/models/**" = ["UP007", "UP045"]
+"ratis_core/ratis_core/models/*.py" = ["UP007", "UP045"]
+
+# ---------------------------------------------------------------------------
+# mypy — PERMISSIVE baseline (intentionally).
+# Goal: a GREEN gate that can be ratcheted later (per-module strictness), NOT a
+# strict wall today. Scope is invoked explicitly on the command line / in the
+# pre-commit hook (the 5 services + ratis_core + tools/agent-mcp). `exclude`
+# below removes the noisiest non-product code from any recursive run.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+# Third-party libs without stubs (paddleocr, pyzbar, osmnx, celery, …) must not
+# fail the gate. Kept global + reinforced per-module below for documentation.
+ignore_missing_imports = true
+# Permissive knobs — explicit so the ratchet path is visible (flip these later).
+check_untyped_defs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+warn_return_any = false
+warn_no_return = false
+# --- RATCHET LIST -----------------------------------------------------------
+# Adopting mypy on a large, mostly-unannotated codebase: these error CATEGORIES
+# are silenced to reach a GREEN baseline today (120 hits across PA/LO/RW/core).
+# They are annotation-completeness / SQLAlchemy-2.0-stub / Optional-narrowing
+# noise, NOT runtime bugs. Re-enable ONE code at a time (delete it from this
+# list, fix the surfaced errors, commit) to ratchet strictness up over time.
+# Everything NOT listed here stays ON — so the gate still fails on broken
+# imports, undefined names, duplicate defs, bad type syntax, return-outside-def,
+# unreachable type logic, etc. (real-breakage signal kept intact).
+disable_error_code = [
+    "union-attr",      # access on `X | None` w/o narrowing (strict-optional)
+    "arg-type",        # SQLAlchemy Sequence[Row] vs list, Decimal/int mixing
+    "attr-defined",    # SQLAlchemy `Result.rowcount` stub gap + submodule re-exports
+    "operator",        # arithmetic on values mypy widened to `object`
+    "assignment",      # narrowing assignments in partially-typed flows
+    "return-value",    # dynamic Pydantic/`create_model` return shapes
+    "call-overload",   # pydantic.create_model overload resolution
+    "truthy-function", # `if some_callable:` style checks
+    "index",           # indexing values typed as `object`
+    "var-annotated",   # `x = []` needing an explicit element type
+    "misc",            # grab-bag (e.g. `None not callable` on lazy singletons)
+]
+# Migrations are Alembic-generated boilerplate; tests use fixtures/duck-typing.
+# Excluded from the typed surface (re-includable per-module when ratcheting).
+exclude = [
+    '^alembic/',
+    '/tests/',
+    '/conftest\.py$',
+    '_pb2\.py$',
+]
+
+# Untyped C-extension / no-stub dependencies. ignore_missing_imports is already
+# global, but listing them documents the known-untyped boundary and keeps the
+# gate green even if the global flag is later tightened.
+[[tool.mypy.overrides]]
+module = [
+    "paddleocr.*",
+    "paddle.*",
+    "paddlex.*",
+    "pyzbar.*",
+    "osmnx.*",
+    "cv2.*",
+    "celery.*",
+    "slowapi.*",
+    "jose.*",
+    "barcode.*",
+    "sqlite_vec.*",
+    "FlagEmbedding.*",
+]
+ignore_missing_imports = true

@@ -1,0 +1,46 @@
+{
+  "_doc": "Oracle pour intermarche_courbevoie.jpg. L'humain remplit ce qu'il VOIT sur le ticket (labels + prix + qty). Le test vérifie qu'après la pipeline ces items existent en DB. Le matcher (status/match_method) est libre — pas asserté ici car dépend du seed DB.",
+
+  "ticket_meta": {
+    "raw_ticket_image_hash": "3e98a622dd4ac4e89f20e316f256f91dd1e5291d50ce0438f6e14fe41d92c4e6",
+    "ocr_engine_version": "paddleocr-2.7.3-fr"
+  },
+
+  "items_visibles_sur_le_ticket": [
+    {
+      "label": "HIPRO A BRE SAV VAN",
+      "qty": 4,
+      "unit_price_cents": 262,
+      "total_cents": 1048
+    },
+    {
+      "label": "HIPRO A BRE SAV FRSE",
+      "qty": 4,
+      "unit_price_cents": 207,
+      "total_cents": 828
+    }
+  ],
+
+  "ticket_total_cents": 1876,
+
+  "store_match": {
+    "store_status_attendu": "matched",
+    "_help_store": "Intermarché Courbevoie 18 ter rue de Bezons inséré manuellement en DB via db/datafixes/2026-04-30_insert_intermarche_courbevoie.sql (lat: 48.89363, lng: 2.252612, source='admin'). Donc 'matched' attendu — Phase 3 fuzzy match doit le retrouver via name_normalized + postcode."
+  },
+
+  "pipeline_audit_log_events_attendus": [
+    { "phase": "extract", "event": "extract_started" },
+    { "phase": "extract", "event": "extract_completed" },
+    { "phase": "comprehend", "event": "comprehend_started" },
+    { "phase": "comprehend", "event": "assemble_lines_done" },
+    { "phase": "comprehend", "event": "llm_extraction_done" },
+    { "phase": "comprehend", "event": "parsed_ticket_built" },
+    { "phase": "match", "event": "match_started" },
+    { "phase": "match", "event": "store_matched" },
+    { "phase": "match", "event": "match_completed" },
+    { "phase": "persist", "event": "parsed_ticket_persisted" },
+    { "phase": "persist", "event": "store_candidate_persisted" },
+    { "phase": "persist", "event": "persist_completed" },
+    { "phase": "persist", "event": "pipeline_completed" }
+  ]
+}

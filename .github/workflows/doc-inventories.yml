@@ -1,0 +1,106 @@
+name: doc-inventories
+
+on:
+  pull_request:
+    paths:
+      - "webservices/**/routes/**/*.py"
+      - "webservices/**/main.py"
+      - "scripts/generate-endpoints-inventory.py"
+      - "scripts/generate-arch-inventory.py"
+      - "scripts/check-arch-convention.sh"
+      - "scripts/verify-procedures-catalogue.py"
+      - "docs/reference/ENDPOINTS.md"
+      - "docs/reference/ARCH_INVENTORY.md"
+      - "**/ARCH_*.md"
+      - "docs/known/KNOWN_PROBLEMS.md"
+      - "docs/decisions/DECISIONS_ACTED.md"
+      - "db/procedures/**"
+      - "scripts/generate-procedures-catalogue.py"
+      - "docs/arch/PROCEDURES.md"
+      - "ratis_core/ratis_core/db_procedure_manifest.py"
+      - "ratis_core/ratis_core/db_procedure_verifier.py"
+      - ".github/workflows/doc-inventories.yml"
+  push:
+    branches: [main]
+    paths:
+      - "webservices/**/routes/**/*.py"
+      - "webservices/**/main.py"
+      - "scripts/generate-endpoints-inventory.py"
+      - "scripts/generate-arch-inventory.py"
+      - "scripts/check-arch-convention.sh"
+      - "scripts/verify-procedures-catalogue.py"
+      - "**/ARCH_*.md"
+      - "docs/known/KNOWN_PROBLEMS.md"
+      - "docs/decisions/DECISIONS_ACTED.md"
+      - "db/procedures/**"
+      - "scripts/generate-procedures-catalogue.py"
+      - "docs/arch/PROCEDURES.md"
+      - "ratis_core/ratis_core/db_procedure_manifest.py"
+      - "ratis_core/ratis_core/db_procedure_verifier.py"
+
+permissions:
+  contents: read
+
+jobs:
+  check-endpoints-fresh:
+    name: ENDPOINTS.md is fresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Regenerate ENDPOINTS.md (dry-run — check only)
+        run: uv run python scripts/generate-endpoints-inventory.py --check
+
+  check-arch-fresh:
+    name: ARCH_INVENTORY.md is fresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Regenerate ARCH_INVENTORY.md (dry-run — check only)
+        run: uv run python scripts/generate-arch-inventory.py --check
+
+  check-arch-convention:
+    name: ARCH convention warnings (warn-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: "Run convention checker (warn-only annotations, never fails)"
+        run: bash scripts/check-arch-convention.sh --github
+
+  check-procedures-fresh:
+    name: PROCEDURES.md is fresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Regenerate PROCEDURES.md (dry-run — check only)
+        run: uv run python scripts/generate-procedures-catalogue.py --check
+
+  check-procedures-conform:
+    name: db/procedures/* conforme à son manifeste (HSP1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Sync ratis_core (installe pglast + Pydantic)
+        run: uv sync --package ratis-core --frozen
+      - name: Verifier sur tout le catalogue
+        run: uv run python scripts/verify-procedures-catalogue.py

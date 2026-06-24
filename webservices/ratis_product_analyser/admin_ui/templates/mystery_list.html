@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Mystery Product{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-2">Mystery Product — défis</h1>
+<p class="mb-6 text-slate-600 text-sm">
+  Défis hebdomadaires "scan le produit mystère". Un seul défi peut chevaucher
+  une période donnée (RW enforce). Les défis <code>scheduled</code> sont
+  modifiables / supprimables ; un défi <code>active</code> ou <code>completed</code>
+  ne l'est plus.
+</p>
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<section class="mb-8">
+  <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+    <span>Défis</span>
+    <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded">{{ challenges | length }}</span>
+  </h2>
+  {% if challenges %}
+  <div class="overflow-x-auto bg-white shadow rounded">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100 text-slate-700">
+        <tr>
+          <th class="text-left px-3 py-2">EAN</th>
+          <th class="text-left px-3 py-2">Début</th>
+          <th class="text-left px-3 py-2">Fin</th>
+          <th class="text-left px-3 py-2">Status</th>
+          <th class="text-right px-3 py-2">Finds</th>
+          <th class="px-3 py-2"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in challenges %}
+        <tr class="border-t border-slate-200 hover:bg-slate-50">
+          <td class="px-3 py-2 font-mono">{{ c.product_ean or "—" }}</td>
+          <td class="px-3 py-2 font-mono text-xs">{{ c.starts_at }}</td>
+          <td class="px-3 py-2 font-mono text-xs">{{ c.ends_at }}</td>
+          <td class="px-3 py-2">
+            {% if c.status == "active" %}
+              <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">{{ c.status }}</span>
+            {% elif c.status == "scheduled" %}
+              <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{{ c.status }}</span>
+            {% else %}
+              <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded">{{ c.status }}</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-2 text-right">{{ c.finds_count }}</td>
+          <td class="px-3 py-2 text-right">
+            <a href="/admin/ui/mystery/{{ c.id }}"
+               class="text-slate-600 hover:underline"
+               data-testid="link-mystery-{{ c.id }}">Éditer →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500 italic">Aucun défi enregistré.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2 class="text-lg font-semibold mb-3">Nouveau défi</h2>
+  <p class="text-xs text-slate-500 mb-3">
+    <strong>product_ean</strong> optionnel : laisser vide pour tirage aléatoire (avec
+    <strong>category_filter</strong> optionnel). <strong>reward_tiers</strong> et
+    <strong>clues</strong> sont des arrays JSON (ex: <code>[{"reveal_day": 1, "clue_text": "..."}]</code>).
+  </p>
+  <form method="post" action="/admin/ui/mystery" class="bg-white shadow rounded p-4 space-y-3" data-testid="mystery-create-form">
+    <div>
+      <label class="block text-sm font-medium mb-1" for="starts_at">Début (ISO 8601)</label>
+      <input id="starts_at" name="starts_at" type="datetime-local" required
+             class="w-full text-sm border border-slate-300 rounded p-2" />
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="product_ean">Product EAN (optionnel)</label>
+        <input id="product_ean" name="product_ean" type="text" maxlength="14"
+               class="w-full text-sm border border-slate-300 rounded p-2 font-mono"
+               placeholder="3017620422003" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="category_filter">Category filter (optionnel)</label>
+        <input id="category_filter" name="category_filter" type="text"
+               class="w-full text-sm border border-slate-300 rounded p-2"
+               placeholder="ex: petit-déjeuner" />
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="reward_tiers">Reward tiers (JSON array)</label>
+      <textarea id="reward_tiers" name="reward_tiers" rows="3" required
+                class="w-full text-sm border border-slate-300 rounded p-2 font-mono"
+                placeholder='[{"tier": 1, "cab": 100}, {"tier": 2, "cab": 50}]'></textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="clues">Clues (JSON array)</label>
+      <textarea id="clues" name="clues" rows="3" required
+                class="w-full text-sm border border-slate-300 rounded p-2 font-mono"
+                placeholder='[{"reveal_day": 1, "clue_text": "Indice 1"}]'></textarea>
+    </div>
+    <div>
+      <button type="submit"
+              class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700"
+              data-testid="mystery-create-button">
+        Créer le défi
+      </button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Mission{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/missions" class="text-sm text-slate-600 hover:underline">← Retour aux missions</a>
+</div>
+
+{% if not mission %}
+  <h1 class="text-2xl font-bold mb-3">Mission introuvable</h1>
+  <p class="text-sm text-slate-600">
+    {% if error %}{{ error }}{% else %}Mission introuvable.{% endif %}
+  </p>
+{% else %}
+<h1 class="text-2xl font-bold mb-2">
+  Mission <span class="font-mono text-base text-slate-500">#{{ mission.id }}</span>
+</h1>
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<form method="post" action="/admin/ui/missions/{{ mission.id }}" class="bg-white shadow rounded p-4 space-y-3" data-testid="mission-edit-form">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div>
+      <label class="block text-sm font-medium mb-1" for="action_type">Action</label>
+      <select id="action_type" name="action_type" required
+              class="w-full text-sm border border-slate-300 rounded p-2">
+        {% for opt in ["receipt_scan", "label_scan", "barcode_scan", "price_compared"] %}
+        <option value="{{ opt }}" {% if mission.action_type == opt %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="frequency">Fréquence</label>
+      <select id="frequency" name="frequency" required
+              class="w-full text-sm border border-slate-300 rounded p-2">
+        {% for opt in ["daily", "weekly"] %}
+        <option value="{{ opt }}" {% if mission.frequency == opt %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="difficulty">Difficulté</label>
+      <select id="difficulty" name="difficulty" required
+              class="w-full text-sm border border-slate-300 rounded p-2">
+        {% for opt in ["easy", "medium", "hard"] %}
+        <option value="{{ opt }}" {% if mission.difficulty == opt %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div>
+      <label class="block text-sm font-medium mb-1" for="target_count">Target count</label>
+      <input id="target_count" name="target_count" type="number" min="1" max="10000" required
+             value="{{ mission.target_count }}"
+             class="w-full text-sm border border-slate-300 rounded p-2" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="cab_reward">CAB reward</label>
+      <input id="cab_reward" name="cab_reward" type="number" min="0" max="1000000" required
+             value="{{ mission.cab_reward }}"
+             class="w-full text-sm border border-slate-300 rounded p-2" />
+    </div>
+  </div>
+  <div class="flex items-center gap-6">
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_active" {% if mission.is_active %}checked{% endif %} />
+      <span>Active</span>
+    </label>
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_boostable" {% if mission.is_boostable %}checked{% endif %} />
+      <span>Boostable</span>
+    </label>
+  </div>
+  <div>
+    <button type="submit"
+            class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700"
+            data-testid="mission-save-button">
+      Enregistrer
+    </button>
+    <span class="ml-2 text-xs text-slate-500">
+      Le batch quotidien picore les rows actives — modifier ici n'altère pas
+      les missions déjà attribuées aux utilisateurs.
+    </span>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

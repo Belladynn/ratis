@@ -1,0 +1,89 @@
+name: Alembic auto-heal
+
+# Auto-heal for the "Multiple head revisions" failure mode on `main`.
+#
+# The repo is on the free GitHub plan (no branch protection, no merge queue),
+# so two PRs can each merge a migration branching off the SAME parent. When
+# that happens `main` ends up with two alembic heads and `alembic upgrade
+# head` breaks for EVERY subsequent PR. The companion `alembic_heads.yml`
+# guard warns on PR branches, but a collision can still land on `main` when
+# two green PRs merge close together.
+#
+# This workflow repairs `main` automatically: on any push to `main` touching
+# migrations it detects a dual-head graph and commits a merge revision back
+# to `main`.
+#
+# Why pushing with the default GITHUB_TOKEN is safe here (no infinite loop):
+#   - GitHub does NOT re-trigger workflow runs for commits pushed with the
+#     default GITHUB_TOKEN. So the auto-heal commit will not re-invoke this
+#     workflow.
+#   - Even without that guarantee, the loop is self-terminating: after the
+#     merge revision lands `main` has exactly one head, so a re-run would hit
+#     the `count <= 1` branch and exit immediately.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "alembic/**"
+      - ".github/workflows/alembic_autoheal.yml"
+
+concurrency:
+  group: alembic-autoheal
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  autoheal:
+    name: Auto-merge alembic heads
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Detect & auto-merge multiple heads
+        run: |
+          set -euo pipefail
+
+          count=$(uv run alembic heads 2>/dev/null | grep -cE '\(head\)' || true)
+          echo "alembic head count = $count"
+
+          if [ "$count" -le 1 ]; then
+            echo "single head, nothing to heal"
+            exit 0
+          fi
+
+          echo "::warning::alembic has $count heads on main — auto-merging."
+
+          # Revision id stays well under the alembic_version varchar(32) limit
+          # (R08): "YYYYMMDD_HHMMSS_autoheal" = 24 chars.
+          rev_id="$(date -u +%Y%m%d_%H%M%S)_autoheal"
+          uv run alembic merge heads -m "auto-merge alembic heads" --rev-id "$rev_id"
+
+          # The merge revision is the only new untracked file under versions/.
+          merge_file=$(git ls-files --others --exclude-standard -- alembic/versions/)
+          if [ -z "$merge_file" ]; then
+            echo "::error::expected a new merge migration file but found none"
+            exit 1
+          fi
+          echo "generated merge migration: $merge_file"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$merge_file"
+          git commit -m "fix(alembic): auto-merge dual heads"
+          git push origin HEAD:main
+          echo "auto-heal commit pushed to main"

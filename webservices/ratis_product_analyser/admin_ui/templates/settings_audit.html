@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Audit settings{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/settings" class="text-sm text-slate-600 hover:underline">← Retour aux settings</a>
+</div>
+
+<h1 class="text-2xl font-bold mb-2">Audit log — modifications settings</h1>
+<p class="mb-6 text-slate-600 text-sm">
+  Historique des écritures sur <code class="font-mono">app_settings</code>
+  (write applied / pending 2FA / expired / cancelled). Append-only —
+  filtre par section + statut.
+</p>
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="audit-error">
+    Erreur de chargement : {{ error }}
+  </div>
+{% endif %}
+
+<form method="get" action="/admin/ui/settings/audit"
+      class="bg-white shadow rounded p-4 mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+  <div>
+    <label class="block text-xs font-semibold mb-1" for="section">Section</label>
+    <select id="section" name="section" class="w-full border rounded px-2 py-1">
+      <option value="">(toutes)</option>
+      {% for s in all_sections %}
+        <option value="{{ s }}" {% if section == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1" for="status">Statut</label>
+    <select id="status" name="status" class="w-full border rounded px-2 py-1">
+      <option value="">(tous)</option>
+      {% for st in all_statuses %}
+        <option value="{{ st }}" {% if status == st %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="md:col-span-2 flex items-end gap-2">
+    <button type="submit"
+            class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">
+      Filtrer
+    </button>
+    {% if section or status %}
+      <a href="/admin/ui/settings/audit"
+         class="text-sm text-slate-600 hover:underline">Réinitialiser</a>
+    {% endif %}
+  </div>
+</form>
+
+{% if not items %}
+  <p class="text-slate-500" data-testid="empty">Aucune mutation pour ces filtres.</p>
+{% else %}
+  <table class="w-full bg-white shadow rounded text-sm">
+    <thead class="bg-slate-100 text-left">
+      <tr>
+        <th class="px-3 py-2">Timestamp</th>
+        <th class="px-3 py-2">Operator</th>
+        <th class="px-3 py-2">Section</th>
+        <th class="px-3 py-2">Statut</th>
+        <th class="px-3 py-2">Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr class="border-t align-top hover:bg-slate-50" data-testid="audit-row-{{ it.id }}">
+        <td class="px-3 py-2 text-xs whitespace-nowrap font-mono">
+          <a href="/admin/ui/settings/audit/{{ it.id }}" class="text-slate-700 hover:underline">
+            {{ it.timestamp or '—' }}
+          </a>
+        </td>
+        <td class="px-3 py-2">{{ it.operator or '—' }}</td>
+        <td class="px-3 py-2 font-mono text-xs">{{ it.section }}</td>
+        <td class="px-3 py-2">
+          {% set st = it.status %}
+          {% if st == 'applied' %}
+            <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">applied</span>
+          {% elif st == 'pending_2fa' %}
+            <span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">pending_2fa</span>
+          {% elif st == 'expired' %}
+            <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded">expired</span>
+          {% elif st == 'cancelled' %}
+            <span class="text-xs bg-rose-100 text-rose-800 px-2 py-0.5 rounded">cancelled</span>
+          {% else %}
+            <span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">{{ st }}</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 text-sm">
+          {% if it.reason %}
+            <span title="{{ it.reason }}">
+              {% if it.reason | length > 80 %}{{ it.reason[:80] }}…{% else %}{{ it.reason }}{% endif %}
+            </span>
+          {% else %}
+            <span class="text-slate-400">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+<div class="mt-4 flex items-center justify-between text-sm">
+  <div class="text-slate-600">
+    {% set start = offset + 1 if items else 0 %}
+    {% set end = offset + (items | length) %}
+    {% if items %}
+      Résultats {{ start }}–{{ end }} sur {{ total }}
+    {% else %}
+      0 résultats
+    {% endif %}
+  </div>
+  <div class="flex gap-2">
+    {% if offset > 0 %}
+      <a href="/admin/ui/settings/audit?{{ prev_qs }}"
+         class="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded">← Précédent</a>
+    {% else %}
+      <span class="px-3 py-1 bg-slate-100 text-slate-400 rounded">← Précédent</span>
+    {% endif %}
+    {% if has_next %}
+      <a href="/admin/ui/settings/audit?{{ next_qs }}"
+         class="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded">Suivant →</a>
+    {% else %}
+      <span class="px-3 py-1 bg-slate-100 text-slate-400 rounded">Suivant →</span>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

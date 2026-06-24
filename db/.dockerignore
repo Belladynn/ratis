@@ -1,0 +1,4 @@
+# db/ build context (.) — the Dockerfile only layers PostGIS onto postgres:16
+# and COPYs nothing, so none of the schema/datafix/procedure files need to be
+# sent to the daemon. Exclude everything; Docker always keeps the Dockerfile.
+*

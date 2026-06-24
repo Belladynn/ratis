@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Supprimer{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/mystery/{{ challenge.id if challenge else '' }}" class="text-sm text-slate-600 hover:underline">
+    ← Annuler et retourner au détail
+  </a>
+</div>
+
+<h1 class="text-2xl font-bold mb-3 text-red-700">Supprimer ce défi ?</h1>
+
+{% if not challenge %}
+  <p class="text-sm text-slate-600">
+    {% if error %}{{ error }}{% else %}Défi introuvable.{% endif %}
+  </p>
+{% else %}
+<div class="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded mb-4 text-sm">
+  <p class="font-medium mb-1">Cette action est irréversible.</p>
+  <p>
+    Seuls les défis en état <code>scheduled</code> peuvent être supprimés. Si le
+    statut actuel n'est plus <code>scheduled</code>, RW refusera (409).
+  </p>
+</div>
+
+<dl class="bg-white shadow rounded p-4 mb-4 text-sm space-y-1">
+  <div class="flex justify-between"><dt class="text-slate-500">ID</dt><dd class="font-mono">{{ challenge.id }}</dd></div>
+  <div class="flex justify-between"><dt class="text-slate-500">EAN</dt><dd class="font-mono">{{ challenge.product_ean or "—" }}</dd></div>
+  <div class="flex justify-between"><dt class="text-slate-500">Début</dt><dd class="font-mono">{{ challenge.starts_at }}</dd></div>
+  <div class="flex justify-between"><dt class="text-slate-500">Fin</dt><dd class="font-mono">{{ challenge.ends_at }}</dd></div>
+  <div class="flex justify-between"><dt class="text-slate-500">Status</dt><dd>{{ challenge.status }}</dd></div>
+  <div class="flex justify-between"><dt class="text-slate-500">Finds</dt><dd>{{ challenge.finds_count }}</dd></div>
+</dl>
+
+<form method="post" action="/admin/ui/mystery/{{ challenge.id }}/delete" data-testid="mystery-delete-confirm-form">
+  <button type="submit"
+          class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+          data-testid="mystery-delete-confirm-button">
+    Confirmer la suppression
+  </button>
+  <a href="/admin/ui/mystery/{{ challenge.id }}"
+     class="ml-3 text-sm text-slate-600 hover:underline">
+    Annuler
+  </a>
+</form>
+{% endif %}
+{% endblock %}

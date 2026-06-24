@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Déverrouiller l'approbation DB{% endblock %}
+{% block content %}
+<h1>Déverrouillage approbation DB</h1>
+
+<p>
+  Colle ton secret HSP3 (32 bytes base64) ci-dessous. Il est stocké en
+  <code>sessionStorage</code> côté browser et envoyé une seule fois au
+  serveur pour valider la session ; il ne quitte plus le browser ensuite
+  (chaque décision est HMAC-signée client-side).
+</p>
+
+{% if flash %}
+<p class="flash">{{ flash }}</p>
+{% endif %}
+
+<form method="post" action="/admin/ui/db-approvals/unlock" id="unlock-form">
+  <label for="secret">Secret :</label>
+  <textarea
+    id="secret"
+    name="secret"
+    rows="3"
+    cols="80"
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="off"
+    spellcheck="false"
+    required
+  ></textarea>
+  <br />
+  <button type="submit">Déverrouiller</button>
+</form>
+
+<script>
+  // Au submit : stash le secret en sessionStorage AVANT le POST, pour que
+  // les pages de décision puissent le récupérer et HMAC chaque body.
+  // Le serveur le valide aussi côté POST, mais c'est le sessionStorage
+  // qui est utilisé pendant le reste de la session.
+  document
+    .getElementById("unlock-form")
+    .addEventListener("submit", function (e) {
+      var s = document.getElementById("secret").value;
+      try {
+        window.sessionStorage.setItem("human_approval_secret", s);
+      } catch (err) {
+        // sessionStorage indispo ⇒ on continue quand même, le POST se
+        // fera, mais les décisions échoueront. Mieux échec visible
+        // (HMAC bad) que silence.
+        console.warn("sessionStorage unavailable:", err);
+      }
+    });
+</script>
+{% endblock %}

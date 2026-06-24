@@ -1,0 +1,63 @@
+name: test-actions
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - ".github/actions/**"
+      - "scripts/tests/test_batch_sentinel_composite.sh"
+      - ".github/workflows/test_actions.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: test-actions-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck composite actions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install shellcheck (apt, no-op if already there)
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          fi
+          shellcheck --version
+      - name: Extract and shellcheck the composite's inner bash
+        # Use uvx --from pyyaml so system-python pyyaml is not required on the runner.
+        run: |
+          uvx --quiet --from pyyaml python - <<'PY'
+          import yaml, pathlib
+          data = yaml.safe_load(open(".github/actions/report-batch-outcome/action.yml"))
+          script = data["runs"]["steps"][0]["run"]
+          out = pathlib.Path("/tmp/composite-inner.sh")
+          out.write_text("#!/usr/bin/env bash\n" + script)
+          out.chmod(0o755)
+          PY
+          shellcheck -x -S warning /tmp/composite-inner.sh
+
+  golden-vector:
+    name: Composite golden-vector tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Run test_batch_sentinel_composite.sh
+        # Test script needs python3 with pyyaml OR uvx — setup-uv provides uvx.
+        run: |
+          chmod +x scripts/tests/test_batch_sentinel_composite.sh
+          ./scripts/tests/test_batch_sentinel_composite.sh

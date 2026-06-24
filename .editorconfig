@@ -1,0 +1,37 @@
+# EditorConfig — https://editorconfig.org
+# Normalises whitespace/encoding/line-endings across editors. Also the
+# repo-level mitigation for the documented CRLF footgun (KP-25): .env* and
+# every file land as UTF-8 + LF so a Windows checkout can't smuggle \r into
+# require_env() reads.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Python — 4-space (matches ruff line-length=120 / PEP 8).
+[*.py]
+indent_style = space
+indent_size = 4
+
+# Web / config — 2-space (TS/JS/JSON/YAML house style, Expo client included).
+[*.{ts,tsx,js,jsx,mjs,cjs,json,yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# Markdown — keep trailing whitespace (two trailing spaces = hard line break).
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles require real tabs.
+[Makefile]
+indent_style = tab
+
+# Env files — LF is the whole point (KP-25). No final-newline coercion since
+# some loaders are picky; charset/EOL are what matter.
+[.env*]
+insert_final_newline = false

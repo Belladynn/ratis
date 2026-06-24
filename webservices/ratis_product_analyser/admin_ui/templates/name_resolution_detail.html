@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Détail label{% endblock %}
+{% block content %}
+<a href="/admin/ui/name-resolutions/queue" class="text-blue-700 hover:underline text-sm">← retour à la queue</a>
+<h1 class="text-2xl font-bold mt-2 mb-4">Détail — <span class="font-mono">{{ detail.normalized_label }}</span></h1>
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<div class="bg-white shadow rounded p-4 mb-4 text-sm">
+  <div><span class="font-semibold">Store :</span> {{ detail.store_name or detail.store_id }}</div>
+  <div><span class="font-semibold">Label :</span> <span class="font-mono">{{ detail.normalized_label }}</span></div>
+  <div>
+    <span class="font-semibold">État :</span>
+    {% if detail.current_state == 'unverified' %}
+      <span class="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-semibold">{{ detail.current_state }}</span>
+    {% elif detail.current_state == 'controverse' %}
+      <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-semibold">{{ detail.current_state }}</span>
+    {% elif detail.current_state == 'verified' %}
+      <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-semibold">{{ detail.current_state }}</span>
+    {% else %}
+      <span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-xs font-semibold">{{ detail.current_state }}</span>
+    {% endif %}
+  </div>
+  {% if detail.previously_verified_ean %}
+    <div><span class="font-semibold">Previously verified EAN :</span> <span class="font-mono">{{ detail.previously_verified_ean }}</span></div>
+  {% endif %}
+</div>
+
+<h2 class="text-lg font-semibold mb-2">Action — résoudre</h2>
+<form method="post" action="/admin/ui/name-resolutions/resolve" class="bg-white shadow rounded p-4 mb-6 space-y-3 text-sm">
+  <input type="hidden" name="store_id" value="{{ detail.store_id }}" />
+  <input type="hidden" name="normalized_label" value="{{ detail.normalized_label }}" />
+  <input type="hidden" name="redirect_to" value="detail" />
+  <div>
+    <label class="block">
+      <span class="font-medium">Cible EAN :</span>
+      <input type="text" name="target_ean" required
+             class="block mt-1 w-full max-w-md border rounded px-2 py-1 font-mono" />
+    </label>
+    <p class="text-xs text-slate-500 mt-1">
+      Suggestions :
+      {% for t in detail_top_eans %}
+        <button type="submit" name="target_ean" value="{{ t.ean }}"
+                class="ml-2 underline text-blue-700">{{ t.ean }} ({{ t.pct }}%)</button>
+      {% endfor %}
+    </p>
+  </div>
+  <label class="block">
+    <span class="font-medium">Note opérateur (optionnel, ≤ 300 chars) :</span>
+    <textarea name="operator_note" maxlength="300" rows="2"
+              class="block mt-1 w-full max-w-md border rounded px-2 py-1"></textarea>
+  </label>
+  <button type="submit" class="bg-green-700 text-white px-3 py-1 rounded hover:bg-green-600">
+    Valider EAN
+  </button>
+</form>
+
+{% if detail.current_state == 'unverified' %}
+<h2 class="text-lg font-semibold mb-2">Action — rejeter les challengers</h2>
+<form method="post" action="/admin/ui/name-resolutions/reject-challenges" class="bg-white shadow rounded p-4 mb-6 space-y-3 text-sm">
+  <input type="hidden" name="store_id" value="{{ detail.store_id }}" />
+  <input type="hidden" name="normalized_label" value="{{ detail.normalized_label }}" />
+  <input type="hidden" name="redirect_to" value="detail" />
+  <label class="block">
+    <span class="font-medium">Note opérateur (optionnel, ≤ 300 chars) :</span>
+    <textarea name="operator_note" maxlength="300" rows="2"
+              class="block mt-1 w-full max-w-md border rounded px-2 py-1"></textarea>
+  </label>
+  <button type="submit" class="bg-slate-900 text-white px-3 py-1 rounded hover:bg-slate-700"
+          data-testid="reject-challenges-btn">
+    Rejeter les challengers
+  </button>
+</form>
+{% endif %}
+
+<h2 class="text-lg font-semibold mb-2">Résolutions ({{ detail.resolutions | length }})</h2>
+<table class="w-full bg-white shadow rounded text-sm mb-6">
+  <thead class="bg-slate-100 text-left">
+    <tr>
+      <th class="px-3 py-2">Resolved at</th>
+      <th class="px-3 py-2">User</th>
+      <th class="px-3 py-2">EAN</th>
+      <th class="px-3 py-2">Method</th>
+      <th class="px-3 py-2">Scan</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in detail.resolutions %}
+    <tr class="border-t {% if r.is_challenger %}bg-red-50{% endif %}" data-testid="resolution-row">
+      <td class="px-3 py-2 text-xs text-slate-500">{{ r.resolved_at }}</td>
+      <td class="px-3 py-2 font-mono text-xs">{{ r.user_id }}{% if r.is_challenger %} <span class="ml-1 text-xs text-red-700 font-semibold">CHAL</span>{% endif %}</td>
+      <td class="px-3 py-2 font-mono text-xs">{{ r.product_ean }}</td>
+      <td class="px-3 py-2 text-xs">{{ r.match_method }}</td>
+      <td class="px-3 py-2 font-mono text-xs">{{ r.scan_id }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 class="text-lg font-semibold mb-2">Timeline ({{ detail.events | length }})</h2>
+<div class="space-y-2">
+  {% for ev in detail.events %}
+  <div class="bg-white shadow rounded p-3 text-xs" data-testid="event-row">
+    <div class="text-slate-500">{{ ev.created_at }}</div>
+    <div class="font-mono whitespace-pre-wrap">{{ ev.payload | tojson(indent=2) }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

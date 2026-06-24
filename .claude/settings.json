@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/generate-endpoints-inventory.py",
+            "timeout": 30,
+            "statusMessage": "Refreshing docs/reference/ENDPOINTS.md..."
+          },
+          {
+            "type": "command",
+            "command": "python scripts/generate-arch-inventory.py",
+            "timeout": 30,
+            "statusMessage": "Refreshing docs/reference/ARCH_INVENTORY.md..."
+          },
+          {
+            "type": "command",
+            "command": "uv run --package ratis-agent-mcp python scripts/build-docs-vector.py --skip-if-fresh --silent",
+            "timeout": 60,
+            "statusMessage": "Refreshing docs-vector-index (skip if fresh)..."
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/inject-session-context.sh",
+            "timeout": 15,
+            "statusMessage": "Injecting session context nuggets..."
+          },
+          {
+            "type": "command",
+            "command": "cat docs/agents/ORCHESTRATOR.md",
+            "timeout": 10,
+            "statusMessage": "Injecting orchestrator rules..."
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/hooks/inject-subagent-rules.py",
+            "timeout": 10,
+            "statusMessage": "Injecting subagent rules..."
+          }
+        ]
+      }
+    ]
+  }
+}

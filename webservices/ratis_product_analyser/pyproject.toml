@@ -1,0 +1,61 @@
+[project]
+name = "ratis-product-analyser"
+version = "0.1.0"
+description = "OCR receipt scanning and product analysis service for Ratis"
+requires-python = ">=3.12"
+dependencies = [
+    "argon2-cffi>=23",
+    "anthropic>=0.97.0",
+    "boto3>=1.38.0",
+    "celery[redis]>=5.4.0",
+    "fastapi>=0.135.3",
+    "imagehash>=4.3.2",
+    "jinja2>=3.1.6",
+    "opencv-python-headless>=4.10.0",
+    # Pin <3 — PaddleOCR 3.x dropped `show_log` arg and changed `.ocr()` API.
+    # Migrating the wrapper to 3.x is post-alpha (cf KP / ALPHA_FEEDBACK).
+    "paddleocr>=2.9.1,<3.0",
+    # paddlepaddle wheels: Linux x86_64, macOS arm64, Windows x86_64.
+    # Aucun wheel publié pour Linux aarch64 → on l'exclut via marker pour ne pas
+    # casser le `uv sync --all-packages` quand le workspace résout depuis un
+    # runner Linux ARM64 (CI Docker self-hosted Mac mini). Aucun impact prod
+    # (Hetzner V0 = x86_64) ni dev (macOS arm64 a un wheel natif). Voir KP-58.
+    "paddlepaddle>=3.0.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "pdfplumber>=0.11.0",
+    "psycopg[binary]>=3.3.3",
+    "python-dotenv>=1.2.2",
+    "python-multipart>=0.0.20",
+    "pyzbar>=0.1.9",
+    "ratis-core",
+    "sentry-sdk[fastapi]>=2.58.0",
+    "slowapi>=0.1.9",
+    "uvicorn[standard]>=0.42.0",
+    "langfuse>=4.9.0",
+    "opentelemetry-instrumentation-anthropic>=0.61.0",
+]
+
+[dependency-groups]
+dev = [
+    "fpdf2>=2.8.0",
+    "moto[s3]>=5.0.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-timeout>=2.4",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Hard timeout per test : abort after 60s. Empirical gate against the
+# Windows pytest hang issue observed in 3 SAs (april 28). Setup_db
+# fixture + paddleocr lazy import + httpx SSL init can take 5-30s on
+# Windows ; legitimate test execution itself <2s. 60s timeout filters
+# real hangs without flagging slow-but-progressing test sessions.
+# `timeout_method = "thread"` is Windows-safe (no SIGALRM dependency).
+timeout = 60
+timeout_method = "thread"
+markers = [
+    "integration: marks tests as integration tests requiring real resources (skip with -m 'not integration')",
+]
+
+[tool.uv.sources]
+ratis-core = { workspace = true }

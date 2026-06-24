@@ -1,0 +1,71 @@
+version: 2
+
+updates:
+  # --- Python (uv workspace — manifests live at the repo root) ---------------
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+      python-runtime:
+        dependency-type: "production"
+
+  # --- Node / Expo client ----------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/ratis_client"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      expo-and-react:
+        patterns:
+          - "expo*"
+          - "react*"
+          - "@expo/*"
+          - "@react-native*"
+      dev-dependencies:
+        dependency-type: "development"
+
+  # --- Docker base images (one entry per Dockerfile directory) ---------------
+  - package-ecosystem: "docker"
+    directories:
+      - "/batch"
+      - "/db"
+      - "/webservices/ratis_auth"
+      - "/webservices/ratis_product_analyser"
+      - "/webservices/ratis_list_optimiser"
+      - "/webservices/ratis_rewards"
+      - "/webservices/ratis_notifier"
+      - "/webservices/ratis_migrations"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      docker-base-images:
+        patterns:
+          - "*"
+
+  # --- Terraform (AWS IaC) ---------------------------------------------------
+  - package-ecosystem: "terraform"
+    directory: "/infra/aws"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      terraform-providers:
+        patterns:
+          - "*"
+
+  # --- GitHub Actions (keeps the SHA pins current) ---------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"

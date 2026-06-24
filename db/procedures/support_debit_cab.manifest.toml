@@ -1,0 +1,34 @@
+name        = "support_debit_cab"
+purpose     = "Debit support : retire N CAB du user (regime cab, facing)."
+facing      = true
+direction   = "debit"
+money_tier  = "cab"
+
+[[args]]
+name      = "p_user_id"
+type      = "uuid"
+required  = true
+
+[[args]]
+name      = "p_amount"
+type      = "integer"
+required  = true
+min       = 1
+max       = 10000
+
+[[affects]]
+table   = "user_cab_balance"
+op      = "update"
+rows    = 1
+columns = ["balance"]
+
+[[affects]]
+table   = "cabecoin_transactions"
+op      = "insert"
+rows    = 1
+
+# HSP3 — trust level + allowed callers (cf docs/superpowers/specs/2026-05-20-db-pipeline-hsp3-human-gate-design.md §M5).
+# manual = gate humain systématique. Graduation = proposition séparée mode="graduation".
+trust_level_initial = "manual"
+# HSP4 enforcera l'identité du caller ; en HSP3 on initialise au caller de référence.
+allowed_callers = ["claude-code-main"]

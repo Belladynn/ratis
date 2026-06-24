@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ratis_migrations"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Run-once Alembic migrations runner for Ratis (docker compose --profile migrate)."
+dependencies = [
+    "alembic>=1.18.4",
+    "psycopg[binary]>=3.0",
+    "ratis-core",
+]
+
+[tool.uv.sources]
+ratis-core = { workspace = true }
+
+# No package layout: this service has no Python source of its own.
+# It only runs `alembic upgrade head` against the workspace-level
+# `alembic/` directory, which is COPYed into the image at /app/alembic.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true

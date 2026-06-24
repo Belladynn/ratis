@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Supprimer{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/reward-config/{{ config.id if config else '' }}" class="text-sm text-slate-600 hover:underline">
+    ← Annuler et retourner au détail
+  </a>
+</div>
+
+<h1 class="text-2xl font-bold mb-3 text-red-700">Supprimer cette configuration ?</h1>
+
+{% if not config %}
+  <p class="text-sm text-slate-600">
+    {% if error %}{{ error }}{% else %}Configuration introuvable.{% endif %}
+  </p>
+{% else %}
+<div class="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded mb-4 text-sm">
+  <p class="font-medium mb-1">Cette action est irréversible.</p>
+  <p>
+    La row sera supprimée définitivement. Un audit log est conservé côté RW
+    avec le snapshot avant suppression.
+  </p>
+</div>
+
+<dl class="bg-white shadow rounded p-4 mb-4 text-sm space-y-1">
+  <div class="flex justify-between"><dt class="text-slate-500">ID</dt><dd class="font-mono">{{ config.id }}</dd></div>
+  <div class="flex justify-between"><dt class="text-slate-500">Action type</dt><dd class="font-mono">{{ config.action_type }}</dd></div>
+  <div class="flex justify-between"><dt class="text-slate-500">Base amount (CAB)</dt><dd>{{ config.base_amount }}</dd></div>
+</dl>
+
+<form method="post" action="/admin/ui/reward-config/{{ config.id }}/delete" data-testid="reward-config-delete-confirm-form">
+  <button type="submit"
+          class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+          data-testid="reward-config-delete-confirm-button">
+    Confirmer la suppression
+  </button>
+  <a href="/admin/ui/reward-config/{{ config.id }}"
+     class="ml-3 text-sm text-slate-600 hover:underline">
+    Annuler
+  </a>
+</form>
+{% endif %}
+{% endblock %}

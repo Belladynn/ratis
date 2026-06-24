@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title_suffix %} — {{ section }} (2FA){% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/settings/{{ section }}" class="text-sm text-slate-600 hover:underline">← Retour au détail</a>
+</div>
+
+<h1 class="text-2xl font-bold mb-2 flex items-center gap-3">
+  <span class="font-mono">{{ section }}</span>
+  <span class="text-xs bg-amber-100 text-amber-900 px-2 py-1 rounded">Pending 2FA</span>
+</h1>
+
+<p class="mb-4 text-sm text-slate-700">
+  Variation &gt; 50 % détectée sur au moins une clé numérique. La modification
+  est <strong>tenue en attente</strong> 10 minutes — elle sera appliquée
+  uniquement après validation TOTP.
+</p>
+
+<div class="mb-6 bg-slate-100 border border-slate-300 rounded p-3 text-sm">
+  <div><span class="text-slate-500">audit_id :</span> <code class="font-mono">{{ audit_id }}</code></div>
+  <div data-testid="countdown" data-expires-at="{{ expires_at_iso or '' }}">
+    <span class="text-slate-500">Expire dans :</span>
+    <span id="countdown-display">10:00</span>
+  </div>
+</div>
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<form method="post" action="/admin/ui/settings/{{ section }}/confirm-2fa" class="mb-3" data-testid="confirm-2fa-form">
+  <input type="hidden" name="audit_id" value="{{ audit_id }}" />
+  <label class="block mb-2 text-sm font-medium" for="totp">Code TOTP (6 chiffres)</label>
+  <input id="totp" name="totp" type="text" inputmode="numeric"
+         pattern="[0-9]{6}" maxlength="6" required autofocus
+         class="w-32 font-mono text-lg bg-white border border-slate-300 rounded p-2 tracking-widest" />
+  <button type="submit"
+          class="ml-3 bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">
+    Valider TOTP
+  </button>
+</form>
+
+<form method="post" action="/admin/ui/settings/{{ section }}/cancel-pending" data-testid="cancel-pending-form">
+  <input type="hidden" name="audit_id" value="{{ audit_id }}" />
+  <button type="submit"
+          class="bg-slate-200 text-slate-900 px-4 py-2 rounded hover:bg-slate-300 text-sm">
+    Annuler la modification
+  </button>
+</form>
+
+<script>
+  // Lightweight 10-min countdown — server-authoritative ``expires_at`` is
+  // in the data-attribute. If absent (legacy / first render) we fall back
+  // to a 10-minute timer from now. The display is informational only ;
+  // the actual expiry check happens server-side at confirm-2fa.
+  (function () {
+    var el = document.querySelector('[data-testid="countdown"]');
+    if (!el) return;
+    var display = document.getElementById('countdown-display');
+    var expiresIso = el.getAttribute('data-expires-at');
+    var deadline = expiresIso
+      ? new Date(expiresIso).getTime()
+      : Date.now() + 10 * 60 * 1000;
+    function tick() {
+      var ms = deadline - Date.now();
+      if (ms <= 0) {
+        display.textContent = 'expiré';
+        return;
+      }
+      var s = Math.floor(ms / 1000);
+      var mm = String(Math.floor(s / 60)).padStart(2, '0');
+      var ss = String(s % 60).padStart(2, '0');
+      display.textContent = mm + ':' + ss;
+      setTimeout(tick, 1000);
+    }
+    tick();
+  })();
+</script>
+{% endblock %}

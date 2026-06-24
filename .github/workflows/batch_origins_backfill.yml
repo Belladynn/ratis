@@ -1,0 +1,173 @@
+name: batch-origins-backfill
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "batch/ratis_batch_origins_backfill/**"
+      - "ratis_core/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/batch_origins_backfill.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run — fetch without writing (default: true for safety)"
+        type: boolean
+        default: true
+      max_eans:
+        description: "Cap the number of EANs scanned (empty = unlimited)"
+        type: string
+        default: ""
+      request_delay_sec:
+        description: "Sleep between OFF API calls (seconds)"
+        type: string
+        default: "1.0"
+  # No schedule — this is a one-shot ETL. The operator triggers
+  # ``workflow_dispatch`` manually after PR merge, then watches the
+  # ``products.origins_tags IS NOT NULL`` coverage climb to >= 80%
+  # before flipping the attribute:french missions live (cf
+  # PROD_CHECKLIST.md § Missions Phase C-2).
+
+# Serialize runs per ref so a slow scheduled batch never overlaps the next
+# tick. cancel-in-progress=false → the new run queues behind the running one.
+concurrency:
+  group: batch-origins-backfill-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  conventions:
+    name: Conventions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Check assert_no_pending_changes in conftest.py
+        run: |
+          missing=0
+          for conftest in batch/ratis_batch_origins_backfill/tests/conftest.py; do
+            if ! grep -q "assert_no_pending_changes" "$conftest"; then
+              echo "MISSING assert_no_pending_changes in $conftest"
+              missing=1
+            fi
+          done
+          exit $missing
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uvx ruff check batch/ratis_batch_origins_backfill/
+
+  sast:
+    name: SAST (bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - run: uvx bandit[toml] -r batch/ratis_batch_origins_backfill/ -ll -q -c pyproject.toml
+
+  test-origins-backfill:
+    name: Tests — ratis_batch_origins_backfill
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, sast]
+    if: github.event_name != 'workflow_dispatch'
+    # Postgres 16 + PostGIS as an ephemeral service container, reachable on
+    # localhost (GitHub maps the container port to the runner). The conftest
+    # runs `CREATE EXTENSION postgis`, so a PostGIS image is required.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: ratis
+          POSTGRES_PASSWORD: ratis
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-groups --all-packages
+      - name: Create test database
+        # Create via psycopg (installed via ratis_core) — no psql/createdb shell-out needed.
+        # Idempotent: DROP + CREATE so each run starts from a clean state.
+        run: |
+          uv run python -c "
+          import psycopg
+          conn = psycopg.connect('postgresql://ratis:ratis@localhost:5432/postgres', autocommit=True)
+          conn.execute('DROP DATABASE IF EXISTS ratis_test_origins_backfill')
+          conn.execute('CREATE DATABASE ratis_test_origins_backfill')
+          conn.close()
+          "
+      - name: Run tests (ratis_batch_origins_backfill)
+        run: uv run pytest batch/ratis_batch_origins_backfill/tests/ -q
+        env:
+          PYTHONPATH: batch/ratis_batch_origins_backfill
+          DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_origins_backfill
+          TEST_DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_origins_backfill
+
+  origins-backfill:
+    name: One-shot origins_tags backfill (manual)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Record step start (for sentinel duration_s)
+        run: echo "STEP_START=$(date -u +%s)" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: uv sync --all-groups
+      - name: Run origins backfill
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ -n "${{ github.event.inputs.max_eans }}" ]; then
+            ARGS="$ARGS --max-eans ${{ github.event.inputs.max_eans }}"
+          fi
+          if [ -n "${{ github.event.inputs.request_delay_sec }}" ]; then
+            ARGS="$ARGS --request-delay-sec ${{ github.event.inputs.request_delay_sec }}"
+          fi
+          uv run python -m origins_backfill.main $ARGS
+        env:
+          PYTHONPATH: batch/ratis_batch_origins_backfill
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      - name: Report outcome to batch-sentinel
+        if: always()
+        continue-on-error: true
+        uses: ./.github/actions/report-batch-outcome
+        with:
+          webhook_url: ${{ secrets.BATCH_SENTINEL_WEBHOOK_URL }}
+          secret: ${{ secrets.BATCH_SENTINEL_WEBHOOK_SECRET }}
+          conclusion: ${{ job.status }}

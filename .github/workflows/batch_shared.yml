@@ -1,0 +1,105 @@
+name: batch-shared
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "batch/_shared/**"
+      - "ratis_core/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/batch_shared.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conventions:
+    name: Conventions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Check assert_no_pending_changes in conftest.py
+        run: |
+          missing=0
+          for conftest in batch/_shared/tests/conftest.py; do
+            if ! grep -q "assert_no_pending_changes" "$conftest"; then
+              echo "MISSING assert_no_pending_changes in $conftest"
+              missing=1
+            fi
+          done
+          exit $missing
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uvx ruff check batch/_shared/
+
+  sast:
+    name: SAST (bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - run: uvx bandit[toml] -r batch/_shared/ -ll -q -c pyproject.toml
+
+  test-shared:
+    name: Tests — batch_shared
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [lint, sast]
+    # Postgres 16 + PostGIS as an ephemeral service container, reachable on
+    # localhost (GitHub maps the container port to the runner). The conftest
+    # runs `CREATE EXTENSION postgis`, so a PostGIS image is required.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: ratis
+          POSTGRES_PASSWORD: ratis
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-groups --all-packages
+      - name: Create test database
+        # Create via psycopg directly — no psql/createdb shell-out needed (cf P04).
+        run: |
+          uv run python - <<'PY'
+          import psycopg
+          conn = psycopg.connect(
+              "postgresql://ratis:ratis@localhost:5432/postgres",
+              autocommit=True,
+          )
+          conn.execute("DROP DATABASE IF EXISTS ratis_test_batch_shared")
+          conn.execute("CREATE DATABASE ratis_test_batch_shared")
+          conn.close()
+          PY
+      - name: Run tests (batch_shared)
+        run: uv run --package ratis-batch-shared pytest batch/_shared/tests/ -q
+        env:
+          DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_batch_shared
+          TEST_DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_batch_shared

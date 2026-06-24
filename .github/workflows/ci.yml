@@ -1,0 +1,370 @@
+name: CI
+
+# Top-level PR-gating suite. One job per in-scope workspace package, each
+# delegating to the reusable .github/workflows/python-ci.yml. A final
+# `ci-passed` aggregator is the SINGLE required check a branch ruleset points
+# at — so path-skipped jobs can never report green-by-omission.
+#
+# Path filtering : the `changes` job (dorny/paths-filter) computes which
+# packages a PR actually touches ; each package job runs only when its filter
+# (or a shared dependency : ratis_core, pyproject.toml, uv.lock) changed.
+# Unchanged services are skipped, keeping PRs fast, while `ci-passed` still
+# enforces that nothing that DID run failed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Path filter — decides which package suites need to run for this PR/push.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changed packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      auth: ${{ steps.filter.outputs.auth }}
+      product_analyser: ${{ steps.filter.outputs.product_analyser }}
+      list_optimiser: ${{ steps.filter.outputs.list_optimiser }}
+      rewards: ${{ steps.filter.outputs.rewards }}
+      notifier: ${{ steps.filter.outputs.notifier }}
+      core: ${{ steps.filter.outputs.core }}
+      agent_mcp: ${{ steps.filter.outputs.agent_mcp }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+      client: ${{ steps.filter.outputs.client }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            shared: &shared
+              - "ratis_core/**"
+              - "pyproject.toml"
+              - "uv.lock"
+              - ".github/workflows/ci.yml"
+              - ".github/workflows/python-ci.yml"
+            auth:
+              - *shared
+              - "webservices/ratis_auth/**"
+              - "alembic/**"
+            product_analyser:
+              - *shared
+              - "webservices/ratis_product_analyser/**"
+            list_optimiser:
+              - *shared
+              - "webservices/ratis_list_optimiser/**"
+            rewards:
+              - *shared
+              - "webservices/ratis_rewards/**"
+            notifier:
+              - *shared
+              - "webservices/ratis_notifier/**"
+            core:
+              - *shared
+            agent_mcp:
+              - "tools/agent-mcp/**"
+              - "pyproject.toml"
+              - "uv.lock"
+              - ".github/workflows/ci.yml"
+              - ".github/workflows/python-ci.yml"
+            migrations:
+              - "alembic/**"
+              - "alembic.ini"
+              - "ratis_core/**"
+              - "webservices/ratis_migrations/**"
+              - "db/**"
+              - "pyproject.toml"
+              - "uv.lock"
+              - ".github/workflows/ci.yml"
+            client:
+              - "ratis_client/**"
+              - ".github/workflows/ci.yml"
+
+  # ---------------------------------------------------------------------------
+  # Python service / lib / tooling suites (reusable workflow).
+  # ---------------------------------------------------------------------------
+  auth:
+    name: ratis_auth
+    needs: changes
+    if: needs.changes.outputs.auth == 'true'
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      package: ratis-auth
+      path: webservices/ratis_auth
+      coverage-flag: ratis_auth
+    secrets: inherit
+
+  product_analyser:
+    name: ratis_product_analyser
+    needs: changes
+    if: needs.changes.outputs.product_analyser == 'true'
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      package: ratis-product-analyser
+      path: webservices/ratis_product_analyser
+      coverage-flag: ratis_product_analyser
+      # opencv-contrib-python (via paddleocr) links libGL + libglib2 at import.
+      system-packages: libmagic1 libzbar0 libgl1 libglib2.0-0 libgomp1
+      timeout-minutes: 25
+    secrets: inherit
+
+  list_optimiser:
+    name: ratis_list_optimiser
+    needs: changes
+    if: needs.changes.outputs.list_optimiser == 'true'
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      package: ratis-list-optimiser
+      path: webservices/ratis_list_optimiser
+      coverage-flag: ratis_list_optimiser
+    secrets: inherit
+
+  rewards:
+    name: ratis_rewards
+    needs: changes
+    if: needs.changes.outputs.rewards == 'true'
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      package: ratis-rewards
+      path: webservices/ratis_rewards
+      coverage-flag: ratis_rewards
+    secrets: inherit
+
+  notifier:
+    name: ratis_notifier
+    needs: changes
+    if: needs.changes.outputs.notifier == 'true'
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      package: ratis-notifier
+      path: webservices/ratis_notifier
+      coverage-flag: ratis_notifier
+    secrets: inherit
+
+  core:
+    name: ratis_core
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      package: ratis_core
+      path: ratis_core
+      lint-paths: ratis_core/
+      coverage-flag: ratis_core
+    secrets: inherit
+
+  agent_mcp:
+    name: agent_mcp
+    needs: changes
+    if: needs.changes.outputs.agent_mcp == 'true'
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      package: ratis-agent-mcp
+      path: tools/agent-mcp
+      lint-paths: tools/agent-mcp/
+      coverage-flag: agent_mcp
+      # Pure-unit suite — no Postgres/Redis needed.
+      needs-db: false
+    secrets: inherit
+
+  # ---------------------------------------------------------------------------
+  # ratis_migrations — Docker build + `alembic upgrade head` on a fresh DB +
+  # downgrade round-trip. Native `docker` on ubuntu-latest (no DinD), Postgres
+  # from db/ image on an ephemeral per-run network.
+  # ---------------------------------------------------------------------------
+  migrations:
+    name: ratis_migrations
+    needs: changes
+    if: needs.changes.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      CI_NETWORK: ratis_migrations_ci_${{ github.run_id }}_${{ github.run_attempt }}
+      CI_PG_CONTAINER: ratis_migrations_ci_pg_${{ github.run_id }}_${{ github.run_attempt }}
+      CI_PG_USER: ratis
+      CI_PG_PASSWORD: ratis  # pragma: allowlist secret
+      CI_PG_DB: ratis_migrations_ci
+      CI_PG_HOST: postgres
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Create ephemeral docker network
+        run: docker network create "$CI_NETWORK"
+
+      - name: Build Postgres+PostGIS image
+        run: docker build -t ratis-postgis:ci db
+
+      - name: Start ephemeral Postgres
+        run: |
+          docker run -d \
+            --name "$CI_PG_CONTAINER" \
+            --network "$CI_NETWORK" \
+            --network-alias "$CI_PG_HOST" \
+            -e POSTGRES_USER="$CI_PG_USER" \
+            -e POSTGRES_PASSWORD="$CI_PG_PASSWORD" \
+            -e POSTGRES_DB="$CI_PG_DB" \
+            --health-cmd="pg_isready -U $CI_PG_USER" \
+            --health-interval=2s \
+            --health-timeout=5s \
+            --health-retries=15 \
+            ratis-postgis:ci
+
+      - name: Wait for Postgres to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' "$CI_PG_CONTAINER" 2>/dev/null || echo starting)
+            if [ "$status" = "healthy" ]; then
+              echo "Postgres is healthy"
+              exit 0
+            fi
+            echo "[$i/30] postgres status=$status — waiting..."
+            sleep 2
+          done
+          echo "Postgres failed to become healthy" >&2
+          docker logs "$CI_PG_CONTAINER" >&2 || true
+          exit 1
+
+      - name: Build migrations image
+        run: docker build -f webservices/ratis_migrations/Dockerfile -t ratis-migrations:ci .
+
+      - name: Apply alembic upgrade head (fresh DB)
+        run: |
+          docker run --rm \
+            --network "$CI_NETWORK" \
+            -e DATABASE_URL="postgresql+psycopg://$CI_PG_USER:$CI_PG_PASSWORD@$CI_PG_HOST:5432/$CI_PG_DB" \
+            -e AGENT_READ_PASSWORD="ci-agent-read-placeholder-32-chars!" \
+            ratis-migrations:ci
+
+      - name: Verify alembic_version is at head
+        run: |
+          version=$(docker exec "$CI_PG_CONTAINER" \
+            psql -U "$CI_PG_USER" -d "$CI_PG_DB" -At \
+            -c "SELECT version_num FROM alembic_version")
+          if [ -z "$version" ]; then
+            echo "alembic_version row missing — upgrade did not run" >&2
+            exit 1
+          fi
+          echo "alembic_version = $version"
+
+      - name: Round-trip downgrade -1 then upgrade head
+        # Validates the latest revision's downgrade(). Skipped when HEAD is a
+        # merge revision (alembic refuses `downgrade -1` with "Ambiguous walk").
+        run: |
+          set +e
+          DOWNGRADE_OUTPUT=$(docker run --rm \
+            --network "$CI_NETWORK" \
+            -e DATABASE_URL="postgresql+psycopg://$CI_PG_USER:$CI_PG_PASSWORD@$CI_PG_HOST:5432/$CI_PG_DB" \
+            -e AGENT_READ_PASSWORD="ci-agent-read-placeholder-32-chars!" \
+            ratis-migrations:ci alembic downgrade -1 2>&1)
+          DOWNGRADE_EXIT=$?
+          set -e
+          echo "$DOWNGRADE_OUTPUT"
+          if echo "$DOWNGRADE_OUTPUT" | grep -q "Ambiguous walk"; then
+            echo "::notice::HEAD is a merge revision (Ambiguous walk on downgrade -1) — skipping round-trip"
+            exit 0
+          fi
+          if [ $DOWNGRADE_EXIT -ne 0 ]; then
+            echo "downgrade -1 failed with exit $DOWNGRADE_EXIT (not Ambiguous walk)" >&2
+            exit $DOWNGRADE_EXIT
+          fi
+          docker run --rm \
+            --network "$CI_NETWORK" \
+            -e DATABASE_URL="postgresql+psycopg://$CI_PG_USER:$CI_PG_PASSWORD@$CI_PG_HOST:5432/$CI_PG_DB" \
+            -e AGENT_READ_PASSWORD="ci-agent-read-placeholder-32-chars!" \
+            ratis-migrations:ci alembic upgrade head
+
+      - name: Teardown ephemeral Postgres + network
+        if: always()
+        run: |
+          docker rm -f "$CI_PG_CONTAINER" || true
+          docker network rm "$CI_NETWORK" || true
+
+  # ---------------------------------------------------------------------------
+  # ratis_client — Expo / React Native (TypeScript + jest). Node toolchain, so
+  # it lives here as a dedicated job rather than in the Python reusable flow,
+  # keeping the whole in-scope suite under one `ci-passed` gate.
+  # ---------------------------------------------------------------------------
+  client:
+    name: ratis_client
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ratis_client
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ratis_client/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: tsc --noEmit
+        run: npx tsc --noEmit
+      - name: Lint (expo)
+        run: npx expo lint
+      - name: Tests (jest)
+        run: npx jest --coverage --ci
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
+        with:
+          files: ratis_client/coverage/coverage-final.json
+          flags: ratis_client
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # ---------------------------------------------------------------------------
+  # Aggregator — the SINGLE required check. Fails if ANY needed job failed or
+  # was cancelled. Skipped jobs (path-filtered out) are allowed, so unchanged
+  # services don't block, but a real failure can't slip through by omission.
+  # ---------------------------------------------------------------------------
+  ci-passed:
+    name: ci-passed
+    if: always()
+    needs:
+      - changes
+      - auth
+      - product_analyser
+      - list_optimiser
+      - rewards
+      - notifier
+      - core
+      - agent_mcp
+      - migrations
+      - client
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Rendered to "true"/"false" by the expression engine, then compared as
+      # strings in shell (robust — avoids `if <empty>; then` evaluation traps).
+      ANY_FAILED: ${{ contains(needs.*.result, 'failure') }}
+      ANY_CANCELLED: ${{ contains(needs.*.result, 'cancelled') }}
+    steps:
+      - name: Verify no required job failed
+        run: |
+          echo "Job results: ${{ join(needs.*.result, ', ') }}"
+          if [ "$ANY_FAILED" = "true" ] || [ "$ANY_CANCELLED" = "true" ]; then
+            echo "::error::A required CI job failed or was cancelled."
+            exit 1
+          fi
+          echo "All required CI jobs succeeded or were skipped."

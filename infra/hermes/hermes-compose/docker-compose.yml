@@ -1,0 +1,73 @@
+services:
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: ratis-hermes
+    restart: unless-stopped
+    command: gateway run
+    # Pas de ports publics pour Phase 0 (gateway sans messaging plateforme, dashboard désactivé)
+    # On interagit via `docker exec ratis-hermes hermes chat …`
+    # Dashboard sera ré-activé en Phase 2 avec --insecure (loopback) ou Nous Portal auth
+    volumes:
+      - ${HOME}/.hermes:/opt/data
+      # Claude Code JSONL transcripts (read-only) — consumed by skills/ratis/claude-code-postmortem
+      - ${HOME}/.claude/projects:/opt/claude/projects:ro
+      # Postmortem markdown output (read-write) — consumed by M9 bridge SessionStart hook
+      - ${HOME}/.claude/postmortems:/opt/claude/postmortems
+    environment:
+      # Dashboard désactivé Phase 0 (pas de DashboardAuthProvider configuré → crash-loop sinon)
+      - HERMES_DASHBOARD=0
+      # Provider Ollama local (host) via OpenAI-compatible endpoint
+      - OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+      - OPENAI_API_KEY=ollama-local-no-auth
+      # Default model — sera surchargé via config.yaml une fois les profiles configurés
+      - HERMES_MODEL=qwen3:32b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Expose Hermes web dashboard on the host (LAN-private Mac mini, OK).
+    # Bind to 127.0.0.1 on the host side so it's NOT reachable from outside
+    # the host even if the LAN ever opens up — Docker port mapping forwards
+    # the container's 0.0.0.0:9119 only onto the host's loopback.
+    ports:
+      - "127.0.0.1:9119:9119"
+    # Webhook receiver (GlitchTip + future webhook providers POST here).
+    # Joined to ratis_itops_net so glitchtip-web can reach `ratis-hermes:8644`.
+    networks:
+      default: {}
+      ratis_itops_net:
+        aliases:
+          - ratis-hermes
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+
+  # HMAC-signing proxy: GlitchTip POSTs without signature; Hermes requires one.
+  # Sidecar receives raw GlitchTip webhook → re-signs (HMAC-SHA256) → forwards
+  # to ratis-hermes:8644 with X-Webhook-Signature header. ~40 lines stdlib only.
+  glitchtip-proxy:
+    image: python:3.12-slim
+    container_name: ratis-hermes-proxy
+    restart: unless-stopped
+    command: python /app/proxy.py
+    volumes:
+      - ./glitchtip-proxy:/app:ro
+    environment:
+      - HERMES_UPSTREAM=http://ratis-hermes:8644
+      - PORT=8645
+    env_file:
+      - ${HOME}/.hermes/.env  # picks up WEBHOOK_SECRET
+    networks:
+      - default
+      - glitchtip_default  # so GlitchTip worker can POST here
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+networks:
+  default: {}
+  ratis_itops_net:
+    external: true
+  glitchtip_default:
+    external: true

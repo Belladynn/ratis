@@ -1,0 +1,55 @@
+{
+  "name": "db-snapshot",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 3 * * *" }] }
+      },
+      "id": "node-cron-snapshot",
+      "name": "Cron 03:00 — snapshot",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 * * * *" }] }
+      },
+      "id": "node-cron-reap",
+      "name": "Cron horaire — reap",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 220]
+    },
+    {
+      "parameters": {
+        "command": "ssh mac-mini-host '/Users/guillaume/Cursor/Ratis/scripts/db-sandbox/snapshot.sh'"
+      },
+      "id": "node-run-snapshot",
+      "name": "Run snapshot.sh",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "command": "ssh mac-mini-host '/Users/guillaume/Cursor/Ratis/scripts/db-sandbox/sandbox-reap.sh'"
+      },
+      "id": "node-run-reap",
+      "name": "Run sandbox-reap.sh",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [240, 220]
+    }
+  ],
+  "connections": {
+    "Cron 03:00 — snapshot": { "main": [[{ "node": "Run snapshot.sh", "type": "main", "index": 0 }]] },
+    "Cron horaire — reap": { "main": [[{ "node": "Run sandbox-reap.sh", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Europe/Paris" },
+  "id": "db-snapshot-v0",
+  "tags": [],
+  "pinData": {},
+  "meta": {}
+}

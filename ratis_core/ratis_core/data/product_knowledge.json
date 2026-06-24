@@ -1,0 +1,16 @@
+{
+  "storage_type": {
+    "frozen": ["frozen$", "surgel", "congel", "tiefkühl"],
+    "fresh": ["frais$", "fresh$", "réfrigér", "kühlpflichtig"]
+  },
+  "product_family": {
+    "spreads": ["pâte à tartiner", "confiture", "nutella", "beurre de cacahuète"],
+    "dairy": ["yaourt", "fromage", "lait", "crème"],
+    "beverages": ["eau", "jus", "soda", "boisson"]
+  },
+  "dietary": {
+    "vegan": ["vegan", "végétalien"],
+    "halal": ["halal"],
+    "bio": ["bio", "organic", "biologique"]
+  }
+}

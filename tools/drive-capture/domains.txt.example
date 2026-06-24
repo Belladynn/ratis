@@ -1,0 +1,11 @@
+# Allowlist optionnelle d'hôtes pour capture_addon.py.
+# Copier en `domains.txt` pour activer. Un fragment d'hôte par ligne.
+# Une réponse est capturée si son hôte CONTIENT l'une de ces chaînes.
+# Fichier absent ou vide → on capture TOUT (défaut Phase 1).
+#
+# Exemples (à adapter aux enseignes réellement parcourues) :
+# drive.carrefour.fr
+# leclercdrive.fr
+# coursesu.com
+# auchan.fr
+# intermarche.com

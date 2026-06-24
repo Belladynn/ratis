@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Détail utilisateur{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Utilisateur</h1>
+
+{% if error %}
+  <div class="bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm mb-4" data-testid="user-error">
+    {{ error }}
+  </div>
+{% endif %}
+
+{% if user %}
+<section class="bg-white shadow rounded p-4 mb-6" data-testid="identity-block">
+  <h2 class="text-lg font-semibold mb-3">Identité</h2>
+  <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+    <dt class="text-slate-500">ID</dt>
+    <dd class="font-mono text-xs">{{ user.id[:8] }}… <span class="text-slate-400">({{ user.id }})</span></dd>
+
+    <dt class="text-slate-500">Email</dt>
+    <dd>{{ user.email }}</dd>
+
+    <dt class="text-slate-500">Support ID</dt>
+    <dd class="font-mono">{{ user.support_id or '—' }}</dd>
+
+    <dt class="text-slate-500">Type de compte</dt>
+    <dd>{{ user.account_type }}</dd>
+
+    <dt class="text-slate-500">Créé le</dt>
+    <dd class="text-xs">{{ user.created_at or '—' }}</dd>
+
+    <dt class="text-slate-500">Supprimé</dt>
+    <dd>{{ 'oui' if user.is_deleted else 'non' }}{% if user.is_deleted %} ({{ user.updated_at or '—' }}){% endif %}</dd>
+
+    <dt class="text-slate-500">Refresh tokens actifs</dt>
+    <dd>{{ user.refresh_tokens_active }}</dd>
+
+    <dt class="text-slate-500">Subscription</dt>
+    <dd>{{ user.subscription_status or '—' }}</dd>
+
+    <dt class="text-slate-500">Cashback withdrawals</dt>
+    <dd>{{ user.cashback_withdrawal_count }}</dd>
+  </dl>
+</section>
+
+<section class="bg-white shadow rounded p-4" data-testid="scans-block">
+  <h2 class="text-lg font-semibold mb-3">Scans ({{ scans_total }})</h2>
+
+  <form method="get" action="/admin/ui/users/{{ user.id }}"
+        class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4 text-sm">
+    <div>
+      <label class="block text-xs font-semibold mb-1" for="scan_type">Type</label>
+      <select id="scan_type" name="scan_type" class="w-full border rounded px-2 py-1">
+        <option value="">(tous)</option>
+        {% for t in ['receipt', 'electronic_label', 'manual'] %}
+          <option value="{{ t }}" {% if filters.scan_type == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1" for="status">Status</label>
+      <select id="status" name="status" class="w-full border rounded px-2 py-1">
+        <option value="">(tous)</option>
+        {% for s in ['pending', 'matched', 'unresolved', 'rejected', 'accepted'] %}
+          <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1" for="since">Depuis (YYYY-MM-DD)</label>
+      <input type="text" id="since" name="since" value="{{ filters.since or '' }}"
+             class="w-full border rounded px-2 py-1" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1" for="limit">Limit</label>
+      <input type="number" id="limit" name="limit" value="{{ filters.limit }}" min="1" max="200"
+             class="w-full border rounded px-2 py-1" />
+    </div>
+    <div class="flex items-end">
+      <button type="submit"
+              class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700 w-full">
+        Filtrer
+      </button>
+    </div>
+    <input type="hidden" name="offset" value="{{ filters.offset }}" />
+  </form>
+
+  {% if scans %}
+  <table class="w-full text-xs">
+    <thead class="bg-slate-100 text-left">
+      <tr>
+        <th class="px-3 py-2">Scan</th>
+        <th class="px-3 py-2">Type</th>
+        <th class="px-3 py-2">Status</th>
+        <th class="px-3 py-2">Nom</th>
+        <th class="px-3 py-2">EAN</th>
+        <th class="px-3 py-2">Store</th>
+        <th class="px-3 py-2">Match</th>
+        <th class="px-3 py-2">Créé</th>
+        <th class="px-3 py-2">Audit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in scans %}
+      <tr class="border-t" data-testid="scan-row-{{ s.id }}">
+        <td class="px-3 py-2 font-mono">{{ s.id[:8] }}… <span class="text-slate-400">({{ s.id }})</span></td>
+        <td class="px-3 py-2">{{ s.scan_type }}</td>
+        <td class="px-3 py-2">{{ s.status }}</td>
+        <td class="px-3 py-2">{{ s.scanned_name or '—' }}</td>
+        <td class="px-3 py-2 font-mono">{{ s.product_ean or '—' }}</td>
+        <td class="px-3 py-2">{{ s.store_name or '—' }}</td>
+        <td class="px-3 py-2">{{ s.match_method or '—' }}</td>
+        <td class="px-3 py-2">{{ s.created_at or '—' }}</td>
+        <td class="px-3 py-2">
+          <a href="/admin/ui/audit-log?scan_id={{ s.id }}" class="text-blue-700 hover:underline">[audit log]</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <nav class="mt-4 flex gap-2 text-sm" data-testid="scans-pagination">
+    {% if filters.offset > 0 %}
+      <a href="?{{ prev_qs }}" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200">← Précédent</a>
+    {% endif %}
+    {% if has_next %}
+      <a href="?{{ next_qs }}" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200">Suivant →</a>
+    {% endif %}
+    <span class="ml-3 text-slate-500">offset {{ filters.offset }} · limit {{ filters.limit }}</span>
+  </nav>
+  {% else %}
+    <p class="text-slate-500" data-testid="scans-empty">Aucun scan correspondant.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

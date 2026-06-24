@@ -1,0 +1,1554 @@
+{
+  "name": "db-write-pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "db-write-incoming",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "node-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "db-write-incoming-webhook"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HMAC-SHA256 verification of the db-write-pipeline proposal.\n// Webhook options.rawBody=true → raw bytes at item.binary.data (base64).\nconst crypto = require(\"crypto\");\nconst secret = $env.N8N_DB_PIPELINE_WEBHOOK_SECRET;\nif (!secret) throw new Error(\"N8N_DB_PIPELINE_WEBHOOK_SECRET env not set\");\n\nconst item = $input.first();\nconst headers = (item.json || {}).headers || {};\nconst presented = headers[\"x-ratis-signature\"] || headers[\"X-Ratis-Signature\"];\nif (!presented) return { json: { _hmac_status: \"missing_signature\" } };\n\nconst bin = item.binary && item.binary.data;\nif (!bin || !bin.data) return { json: { _hmac_status: \"raw_body_unavailable\" } };\n\nconst rawBuf = Buffer.from(bin.data, \"base64\");\nconst expected = crypto.createHmac(\"sha256\", secret).update(rawBuf).digest(\"hex\");\nconst a = Buffer.from(presented, \"hex\");\nconst b = Buffer.from(expected, \"hex\");\nif (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {\n  return { json: { _hmac_status: \"invalid_signature\" } };\n}\n// Valid — pass the parsed proposal through.\nconst proposal = (item.json || {}).body || {};\nreturn { json: { ...proposal, _hmac_status: \"ok\" } };"
+      },
+      "id": "node-hmac-verify",
+      "name": "HMAC Verify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-hmac-ok",
+              "leftValue": "={{ $json._hmac_status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-hmac-ok",
+      "name": "IF HMAC OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 401,
+        "responseBody": "={{ JSON.stringify({ status: 'rejected', reason: $json._hmac_status }) }}",
+        "options": {}
+      },
+      "id": "node-respond-401",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        600,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// L2 — rate-limit webhook avant les appels LLM coûteux côté Anthropic.\n// Sliding window 20 propositions / 60s, mémoire workflow ($workflow.staticData).\n// Au-delà : on coupe avant Validate identity / args / LLM. Defense in depth\n// avec le throttle 10/min côté agent-mcp et le budget cap Anthropic (PROD_CHECKLIST).\nconst j = $input.first().json;\nconst now = Date.now();\nconst WINDOW_MS = 60 * 1000;\nconst MAX_PER_MINUTE = 20;\nconst data = $workflow.staticData || {};\nconst recent = (data.recentPropositionMs || []).filter(t => now - t < WINDOW_MS);\nif (recent.length >= MAX_PER_MINUTE) {\n  return { json: { ...j, _rate_limit_status: 'rejected', _rate_limit_recent_count: recent.length } };\n}\nrecent.push(now);\ndata.recentPropositionMs = recent;\n$workflow.staticData = data;\nreturn { json: { ...j, _rate_limit_status: 'ok', _rate_limit_recent_count: recent.length } };"
+      },
+      "id": "node-rate-limit-webhook",
+      "name": "Rate limit webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-rate-limit-ok",
+              "leftValue": "={{ $json._rate_limit_status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-rate-limit-ok",
+      "name": "IF rate limit OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 429,
+        "responseBody": "={{ JSON.stringify({ status: 'rejected', reason: 'rate_limit_exceeded' }) }}",
+        "options": {}
+      },
+      "id": "node-respond-429",
+      "name": "Respond 429",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        740,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "command": "ssh mac-mini-host '/Users/guillaume/Cursor/Ratis/scripts/db-sandbox/sandbox-up.sh'"
+      },
+      "id": "node-sandbox-up",
+      "name": "Sandbox Up",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Runs the proposal in the sandbox and evaluates the structured `checks`.\n// The sandbox container name comes from the Sandbox Up node output.\n// docker exec into the sandbox to apply CALL + evaluate checks.\nconst { execSync } = require(\"child_process\");\nconst p = $('IF HMAC OK').first().json;\nconst up = $('Sandbox Up').first().json;\n// Sandbox Up prints JSON {sandbox_id, container} on stdout.\nconst upOut = JSON.parse((up.stdout || \"{}\").trim().split(\"\\n\").pop());\nconst container = upOut.container;\nconst sandboxId = upOut.sandbox_id;\n\n// M7 — defense in depth : validate sandbox identifier shape before any\n// interpolation into a shell command. `sandbox-up.sh` generates the id via\n// `date +%s-$RANDOM` (digits-dash-digits) — anything else is suspicious and\n// short-circuits the proposal. Same check on container (ratis-sandbox-<id>).\nif (!/^[0-9]+-[0-9]+$/.test(String(sandboxId || \"\"))) {\n  return { json: { ...p, _outcome: \"rejected_sandbox_id_invalid\", _sandbox_id: null, _invariants_ok: false, _report: `[db-write-pipeline] proposal ${p.submission_id} REJECTED — invalid sandbox_id shape from sandbox-up.sh` } };\n}\nif (!/^ratis-sandbox-[0-9]+-[0-9]+$/.test(String(container || \"\"))) {\n  return { json: { ...p, _outcome: \"rejected_sandbox_id_invalid\", _sandbox_id: sandboxId, _invariants_ok: false, _report: `[db-write-pipeline] proposal ${p.submission_id} REJECTED — invalid sandbox container shape from sandbox-up.sh` } };\n}\n\nfunction sql(q) {\n  const cmd = `ssh mac-mini-host \"docker exec -i ${container} psql -U ratis -d ratis_prod -tA -v ON_ERROR_STOP=1\"`;\n  return execSync(cmd, { input: q, encoding: \"utf-8\" }).trim();\n}\n\nlet invariantsOk = true;\nconst results = [];\ntry {\n  // HSP4 M4 — mode=new supprimé : la procédure existe déjà dans le catalogue\n  // (déployée hors-pipeline). On ne fait plus que CALL + checks.\n  // Snapshot the `delta` check queries BEFORE.\n  const before = {};\n  for (const c of p.checks) if (c.type === \"delta\") before[c.query] = sql(c.query);\n  // M5 fix — argOrder from manifest.args (not insertion order of p.args).\n  // The manifest is populated upstream by `Validate args` and lives on the\n  // proposal as `_manifest_snapshot`. Same sqlQuote logic as `Execute`.\n  const manifest = $('Validate args').first().json._manifest_snapshot || {};\n  const argOrder = (manifest.args || []).map(a => a.name);\n  function sqlQuote(v) {\n    if (typeof v === \"number\") return String(v);\n    if (typeof v === \"boolean\") return v ? \"true\" : \"false\";\n    if (v === null || v === undefined) return \"NULL\";\n    return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n  }\n  const callArgs = argOrder.map(name => sqlQuote(p.args[name])).join(\", \");\n  sql(`CALL ${p.procedure}(${callArgs})`);\n  for (const c of p.checks) {\n    if (c.type === \"delta\") {\n      const after = sql(c.query);\n      const got = Number(after) - Number(before[c.query]);\n      const ok = got === Number(c.expect);\n      results.push({ check: \"delta\", query: c.query, expect: c.expect, got, ok });\n      if (!ok) invariantsOk = false;\n    }\n    // `rowcount` checks are validated at execution time (procedure OUT param) —\n    // the stub records them as informational here.\n    if (c.type === \"rowcount\") results.push({ check: \"rowcount\", expect: c.expect, ok: true });\n  }\n} catch (e) {\n  invariantsOk = false;\n  results.push({ error: String(e).slice(0, 300) });\n}\nreturn { json: { ...p, _sandbox_id: sandboxId, _invariants_ok: invariantsOk, _check_results: results } };"
+      },
+      "id": "node-dry-run",
+      "name": "Dry-run + invariants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-invariants-ok",
+              "leftValue": "={{ $('Dry-run + invariants').first().json._invariants_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-invariants-ok",
+      "name": "IF invariants OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HSP4 M5 — exécution prod avec checksum per-call.\n// 1. BEGIN ; SET LOCAL app.submission_id = '<uuid>' ; SET LOCAL app.caps_enforced = 'true' ;\n// 2. CALL support_<name>(<args>) ;\n// 3. POST PA /check-rowcount → compare db_change_log au manifeste.\n// 4. mismatch → ROLLBACK + freeze procedure via apply-graduation + alerte Discord.\n// 5. ok → COMMIT.\n//\n// Le binaire psql est invoqué via docker exec sur le container prod ratis-postgres-1.\n// Le rôle utilisé reste `ratis` admin en HSP4 — le swap à `agent_read` est HSP5.\nconst { execSync } = require('child_process');\nconst https = require('https');\nconst http = require('http');\nconst j = $input.first().json;\nconst submissionId = j.submission_id;\nconst procedure = j.procedure;\nconst args = j.args || {};\nconst manifest = j._manifest_snapshot || {};\n\n// L1 fix — flag lu via env n8n DB_PIPELINE_EXECUTE_ENABLED. Fail-safe :\n// absent OU !== 'true' (string match strict) → execute DISABLED.\nconst EXECUTE_ENABLED = $env.DB_PIPELINE_EXECUTE_ENABLED === 'true';\nif (!EXECUTE_ENABLED) {\n  return { json: { ...j, _report: `[db-write-pipeline] proposal ${submissionId} execute DISABLED (flag off)` } };\n}\n\n// Helper : run SQL dans une session psql (NULL = run-and-discard ; les CALL doivent\n// rester dans une SEULE transaction donc on passe tout le script en input stdin).\nfunction runScript(script) {\n  const cmd = `ssh mac-mini-host \"docker exec -i ratis-postgres-1 psql -U ratis -d ratis_prod -tA -v ON_ERROR_STOP=1\"`;\n  return execSync(cmd, { input: script, encoding: 'utf-8' });\n}\n\n// Build le CALL avec args ordered selon manifest.args (l'ordre des positions est\n// stable par construction TOML — args list est ordonnée). Les args sont *bind* via\n// psql `\\set` côté driver natif idéalement ; en l'absence, on quote prudemment.\nconst argOrder = (manifest.args || []).map(a => a.name);\nfunction sqlQuote(v) {\n  if (typeof v === 'number') return String(v);\n  if (typeof v === 'boolean') return v ? 'true' : 'false';\n  if (v === null || v === undefined) return 'NULL';\n  // String : escape simple quote.\n  return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n}\nconst callArgs = argOrder.map(name => sqlQuote(args[name])).join(', ');\n// Ajout de NULL pour le OUT param rows_affected (convention HSP1).\nconst script = `BEGIN;\nSET LOCAL app.submission_id = '${submissionId}';\nSET LOCAL app.caps_enforced = 'true';\nCALL ${procedure}(${callArgs}${callArgs ? ', ' : ''}NULL);\n-- Pas de COMMIT/ROLLBACK ici — on rend la transaction OUVERTE pour qu'on puisse\n-- inspecter db_change_log dans une 2ᵉ commande après. Sauf que psql en mode -1\n-- (single transaction) ferme à la fin... donc on inline le SELECT du checksum\n-- dans le même script et on commit/rollback selon le résultat retourné en stdout.\nSELECT table_name || ':' || COUNT(*) FROM db_change_log\nWHERE submission_id = '${submissionId}'::uuid GROUP BY table_name;\nCOMMIT;`;\n\nlet stdout;\ntry {\n  stdout = runScript(script);\n} catch (e) {\n  // Le CALL ou le checksum a raised → la transaction est rolled-back côté PG.\n  // ON_ERROR_STOP=1 + erreur côté psql + transaction abort = pas de commit.\n  return { json: { ...j, _execute_outcome: 'rollback_call_error', _execute_detail: String(e.stderr || e).slice(0, 500), _report: `[db-write-pipeline] proposal ${submissionId} ROLLBACK (CALL error)` } };\n}\n\n// Parse stdout : lignes `table:count`.\nconst observed = {};\nfor (const line of stdout.split('\\n')) {\n  const m = line.trim().match(/^([a-z_]+):([0-9]+)$/);\n  if (m) observed[m[1]] = Number(m[2]);\n}\n\n// Compare au manifeste via PA /check-rowcount (single source = Python).\n// Note : la transaction est déjà COMMIT à ce stade (psql -1 ne marche pas avec\n// notre script multi-statement). HSP4 V1.1 documente ce trade-off : on COMMIT\n// puis on check, et en cas de mismatch on émet un INCIDENT au lieu d'un\n// ROLLBACK (qui ne serait plus possible). Pour V1.2, refactorer en JS direct\n// avec une connexion node-postgres persistante pour bénéficier du ROLLBACK\n// vraiment atomique. Cf docs/superpowers/specs/...-v1.2-checksum-rollback.md.\nconst paUrl = $env.PA_INTERNAL_BASE_URL + '/api/v1/admin/db-pipeline/check-rowcount';\nconst internalKey = $env.INTERNAL_API_KEY;\nconst body = JSON.stringify({ submission_id: submissionId, manifest });\nconst checkRes = await new Promise((resolve, reject) => {\n  const u = new URL(paUrl);\n  const lib = u.protocol === 'https:' ? https : http;\n  const req = lib.request({\n    method: 'POST', hostname: u.hostname, port: u.port || (u.protocol === 'https:' ? 443 : 80),\n    path: u.pathname,\n    headers: { 'Content-Type': 'application/json', 'X-Internal-API-Key': internalKey, 'Content-Length': Buffer.byteLength(body) },\n  }, (res) => { let buf = ''; res.on('data', (c) => { buf += c; }); res.on('end', () => resolve({ status: res.statusCode, body: buf })); });\n  req.on('error', reject);\n  req.write(body); req.end();\n});\n\nlet checkResult;\ntry { checkResult = JSON.parse(checkRes.body); } catch (e) {\n  return { json: { ...j, _execute_outcome: 'checksum_unreadable', _execute_detail: `PA /check-rowcount returned non-JSON (HTTP ${checkRes.status})`, _report: `[db-write-pipeline] proposal ${submissionId} CHECKSUM ERROR` } };\n}\n\nif (!checkResult.ok) {\n  // Mismatch détecté APRÈS COMMIT — V1.1 trade-off (cf note ci-dessus).\n  // Freeze la procédure via apply-graduation et alerte Discord.\n  const graduUrl = $env.PA_INTERNAL_BASE_URL + '/api/v1/admin/db-pipeline/apply-graduation';\n  const graduBody = JSON.stringify({ procedure, new_trust_level: 'frozen', money_tier: manifest.money_tier || 'non_money' });\n  await new Promise((resolve) => {\n    const u = new URL(graduUrl);\n    const lib = u.protocol === 'https:' ? https : http;\n    const req = lib.request({\n      method: 'POST', hostname: u.hostname, port: u.port || (u.protocol === 'https:' ? 443 : 80),\n      path: u.pathname, headers: { 'Content-Type': 'application/json', 'X-Internal-API-Key': internalKey, 'Content-Length': Buffer.byteLength(graduBody) },\n    }, (res) => { res.on('data', () => {}); res.on('end', resolve); });\n    req.on('error', () => resolve()); req.write(graduBody); req.end();\n  });\n  return { json: { ...j, _execute_outcome: 'checksum_mismatch_frozen', _execute_detail: checkResult.mismatches.join(' ; '), _observed: checkResult.observed, _expected: checkResult.expected, _report: `🔥 [db-write-pipeline] proposal ${submissionId} CHECKSUM MISMATCH — procédure ${procedure} FROZEN. observed=${JSON.stringify(checkResult.observed)} expected=${JSON.stringify(checkResult.expected)}` } };\n}\n\nreturn { json: { ...j, _execute_outcome: 'committed', _observed: checkResult.observed, _report: `[db-write-pipeline] proposal ${submissionId} EXECUTED (checksum OK). observed=${JSON.stringify(checkResult.observed)}` } };"
+      },
+      "id": "node-execute",
+      "name": "Execute (HSP4 checksum)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "command": "ssh mac-mini-host '/Users/guillaume/Cursor/Ratis/scripts/db-sandbox/sandbox-down.sh {{ $('Dry-run + invariants').first().json._sandbox_id }}'"
+      },
+      "id": "node-sandbox-down",
+      "name": "Sandbox Down",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_DISCORD_DIGEST_WEBHOOK_URL }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json._report || $('Build decision').first().json._report }) }}",
+        "options": {}
+      },
+      "id": "node-report-discord",
+      "name": "Report Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Builds the two Anthropic Messages API request bodies for the LLM review.\n// One pass = one focused question. The reviewer is a FRESH context: prompts\n// are built here from the proposal + dry-run results only — no link to the\n// agent that authored the proposal.\nconst j = $('Dry-run + invariants').first().json;\nconst args = JSON.stringify(j.args || {});\nconst checks = JSON.stringify(j._check_results || []);\nconst sqlText = j.mode === \"new\" ? j.new_procedure_sql : \"(existing catalogued procedure)\";\nconst SYSTEM = \"You are an independent reviewer of a proposed database write for the Ratis backend. You did NOT write this proposal; your value is a fresh, skeptical look. Reply with ONLY a JSON object: {\\\"verdict\\\": \\\"ok\\\" | \\\"not_ok\\\", \\\"reason\\\": \\\"<one or two sentences>\\\"}. No text outside the JSON.\";\nconst pass1 = \"Review pass: INTENT. Question: does the procedure actually do what the proposal claims?\\n\\nStated rationale: \" + j.rationale + \"\\nProcedure: \" + j.procedure + \"\\nArguments: \" + args + \"\\nProcedure SQL: \" + sqlText + \"\\nDry-run check results: \" + checks + \"\\n\\nReturn verdict not_ok if the procedure's real effect diverges from the stated rationale.\";\nconst pass2 = \"Review pass: MAGIC CASE. Question: is the dry-run result correct only by coincidence of this specific test case?\\n\\nExample failure: a WHERE user_id=X modifies exactly 1 row only because that user happens to have a single balance row; another user would have N. A rowcount=1 invariant would then be a coincidence, not a guarantee.\\n\\nStated rationale: \" + j.rationale + \"\\nProcedure: \" + j.procedure + \"\\nArguments: \" + args + \"\\nProcedure SQL: \" + sqlText + \"\\nDry-run check results: \" + checks + \"\\n\\nReturn verdict not_ok if the invariants hold for this test case but would not generalise.\";\nfunction bodyFor(userPrompt) {\n  return { model: \"claude-sonnet-4-6\", max_tokens: 1024, system: SYSTEM, messages: [{ role: \"user\", content: userPrompt }] };\n}\nreturn { json: { ...j, _llm_pass1_body: bodyFor(pass1), _llm_pass2_body: bodyFor(pass2) } };"
+      },
+      "id": "node-build-llm-prompts",
+      "name": "Build LLM prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build LLM prompts').item.json._llm_pass1_body) }}",
+        "options": {}
+      },
+      "id": "node-llm-pass1",
+      "name": "LLM pass 1 (intent)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1700,
+        -120
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build LLM prompts').item.json._llm_pass2_body) }}",
+        "options": {}
+      },
+      "id": "node-llm-pass2",
+      "name": "LLM pass 2 (magic case)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        -120
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Aggregates the 2 LLM passes into one verdict.\n// not_ok if any pass is not_ok ; unavailable if any pass could not be\n// evaluated (API down / malformed JSON) — never silently 'ok'.\n// The LLM review is a SECONDARY filter: invariants + human are the real gates.\nfunction parsePass(name, item) {\n  try {\n    const text = (((item || {}).content || [])[0] || {}).text;\n    if (!text) return { pass: name, verdict: \"unavailable\", reason: \"no LLM response\" };\n    const parsed = JSON.parse(text.trim());\n    const raw = String(parsed.verdict || \"\").toLowerCase();\n    const v = (raw === \"ok\" || raw === \"not_ok\") ? raw : \"unavailable\";\n    return { pass: name, verdict: v, reason: parsed.reason || \"\" };\n  } catch (e) {\n    return { pass: name, verdict: \"unavailable\", reason: \"unparseable LLM response\" };\n  }\n}\nconst p = $('Dry-run + invariants').first().json;\nconst r1 = parsePass(\"intent\", $('LLM pass 1 (intent)').first().json);\nconst r2 = parsePass(\"magic_case\", $('LLM pass 2 (magic case)').first().json);\nconst feedback = [r1, r2];\nlet verdict = \"ok\";\nif (r1.verdict === \"not_ok\" || r2.verdict === \"not_ok\") verdict = \"not_ok\";\nelse if (r1.verdict === \"unavailable\" || r2.verdict === \"unavailable\") verdict = \"unavailable\";\nconst out = { ...p, _llm_verdict: verdict, _llm_feedback: feedback, _llm_unavailable: verdict === \"unavailable\" };\nif (verdict === \"not_ok\") {\n  out._response_status = \"rejected\";\n  out._response_stage = \"llm_review\";\n  out._response_feedback = feedback;\n  out._report = \"[db-write-pipeline] proposal \" + p.submission_id + \" REJECTED at llm_review. \" + JSON.stringify(feedback);\n} else {\n  out._response_status = \"pending_human_approval\";\n  out._report = \"[db-write-pipeline] proposal \" + p.submission_id + \" passed machine gates — pending human approval.\" + (verdict === \"unavailable\" ? \" LLM review unavailable — reinforced human review required.\" : \"\");\n}\nreturn { json: out };"
+      },
+      "id": "node-llm-synthesis",
+      "name": "LLM synthesis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2140,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// The invariants gate failed in the sandbox dry-run — build the rejection\n// response for the agent (stage = invariants).\nconst j = $input.first().json;\nreturn { json: { ...j,\n  _response_status: \"rejected\",\n  _response_stage: \"invariants\",\n  _response_feedback: j._check_results || [],\n  _report: \"[db-write-pipeline] proposal \" + j.submission_id + \" REJECTED at invariants. \" + JSON.stringify(j._check_results || [])\n} };"
+      },
+      "id": "node-build-rejected-invariants",
+      "name": "Build rejected (invariants)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ JSON.stringify({ status: $json._response_status, submission_id: $json.submission_id, stage: $json._response_stage, feedback: $json._response_feedback }) }}",
+        "options": {}
+      },
+      "id": "node-respond-agent",
+      "name": "Respond to agent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-approved",
+              "leftValue": "={{ $json._response_status }}",
+              "rightValue": "pending_human_approval",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-approved",
+      "name": "IF machine gates passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2580,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// SP6 — scan tables-argent. Inspecte le SQL de la procedure pour les\n// tables sensibles ; pose _touches_money_tables. Tourne AVANT Sandbox\n// Down (sandbox encore up pour le SELECT prosrc).\n// HSP4 M4 : mode=new supprimé — toutes les procédures sont catalog-only.\nconst { execSync } = require(\"child_process\");\nconst j = $input.first().json;\nconst p = $('IF HMAC OK').first().json;\nconst SENSITIVE = [\n  /cashback_[a-z_]+/i,\n  /\\\\buser_cab_balance\\\\b/i,\n  /\\\\buser_cashback_balance\\\\b/i,\n  /\\\\bsubscriptions\\\\b/i,\n  /\\\\bcashback_withdrawals\\\\b/i,\n  /\\\\bcashback_transactions\\\\b/i,\n];\nlet sqlToScan = \"\";\n// Mode existing — recupere la source cataloguee depuis la sandbox.\ntry {\n  const up = $('Sandbox Up').first().json;\n  const upOut = JSON.parse((up.stdout || \"{}\").trim().split(\"\\n\").pop());\n  const container = upOut.container;\n  // M7 — defense in depth : same shape check as Dry-run. If invalid we DO NOT\n  // exec docker — return early flagged as money-table (fail-safe : badge ON).\n  if (!/^ratis-sandbox-[0-9]+-[0-9]+$/.test(String(container || \"\"))) {\n    return { json: { ...j, _touches_money_tables: true, _money_scan_error: \"invalid sandbox container shape\" } };\n  }\n  const q = \"SELECT prosrc FROM pg_proc WHERE proname = '\" + p.procedure.replace(/'/g, \"''\") + \"'\";\n  const cmd = `ssh mac-mini-host \\\"docker exec -i ${container} psql -tA -U ratis -d ratis_prod -c \\\\\\\"${q}\\\\\\\"\\\"`;\n  sqlToScan = execSync(cmd, { encoding: \"utf8\", timeout: 15000 });\n} catch (e) {\n  // Source inaccessible — prudence : on force le badge tables-argent.\n  return { json: { ...j, _touches_money_tables: true, _money_scan_error: String(e) } };\n}\nconst touches = SENSITIVE.some((re) => re.test(sqlToScan));\nreturn { json: { ...j, _touches_money_tables: touches } };"
+      },
+      "id": "node-money-scan",
+      "name": "Money-table scan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PA_ADMIN_BASE_URL }}/api/v1/admin/db-approvals",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.ADMIN_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ submission_id: $json.submission_id, payload: { procedure: $json.procedure, mode: $json.mode, args: $json.args, rationale: $json.rationale, new_procedure_sql: $json.new_procedure_sql, client_message: $json.client_message, investigation: $json.investigation, checks: $json._check_results, llm_feedback: $json._llm_feedback, break_glass: $json.break_glass, summary_fr: $json._summary_fr, summary_error: $json._summary_error, anomaly_flags: $json._anomaly_flags, manifest: $json._manifest_snapshot || {} }, touches_money_tables: ($('Money-table scan').first() ? $('Money-table scan').first().json._touches_money_tables : $json._touches_money_tables) || false, llm_unavailable: $json._llm_unavailable || false, resume_url: $execution.resumeUrl }) }}",
+        "options": {}
+      },
+      "id": "node-register-approval",
+      "name": "Register approval",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_DISCORD_DIGEST_WEBHOOK_URL }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: '\\uD83D\\uDD14 **Proposition d\\'écriture DB en attente d\\'approbation**\\nProcédure : `' + $('IF HMAC OK').first().json.procedure + '`' + ($('Money-table scan').first() && $('Money-table scan').first().json._touches_money_tables ? ' \\uD83D\\uDD34 tables-argent' : '') + '\\n\\u2192 ' + $env.PA_ADMIN_BASE_URL + '/admin/ui/db-approvals' }) }}",
+        "options": {}
+      },
+      "id": "node-notify-discord",
+      "name": "Notify Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 24,
+        "resumeUnit": "hours",
+        "options": {}
+      },
+      "id": "node-wait-approval",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3160,
+        0
+      ],
+      "webhookId": "db-write-approval-wait"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HSP3 M2 — verifie le MAC calcule par PA avec N8N_RESUME_SECRET\n// et confirme submission_id avant de construire l'outcome.\nconst crypto = require('crypto');\nconst proposal = $('IF HMAC OK').first().json;\nconst resume = $input.first().json;\nconst body   = resume.body || resume;\nconst decision = body.decision;\nconst presentedMac = body.mac || '';\nconst submissionIdFromBody = body.submission_id || '';\n\nconst sid = $('Register approval').first().json.submission_id;\nif (submissionIdFromBody !== sid) {\n  return { json: { ...proposal, _outcome: 'rejected_mac', _report: '[db-write-pipeline] proposal ' + sid + ' resume MAC verification \\u2014 submission_id mismatch.' } };\n}\n\nconst resumeSecret = $env.N8N_RESUME_SECRET;\nif (!resumeSecret) throw new Error('N8N_RESUME_SECRET env not set in n8n');\n\nconst expected = crypto.createHmac('sha256', resumeSecret).update(sid + decision).digest('hex');\nconst a = Buffer.from(presentedMac, 'hex');\nconst b = Buffer.from(expected, 'hex');\nif (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {\n  return { json: { ...proposal, _outcome: 'rejected_mac', _report: '[db-write-pipeline] proposal ' + sid + ' resume MAC verification FAILED \\u2014 agent forgery suspected.' } };\n}\n\n// L3 fix — ne pas swallow l'erreur silencieusement. Si LLM synthesis n'a pas\n// tourné (branche break-glass) c'est attendu → llmUnavailable=false sans warn.\n// Si le node existe mais .first() raise (race), on flag _llm_unavailable=true\n// (fail-safe : examen humain renforcé) au lieu de tomber sur false.\nlet llmUnavailable = false;\nconst llmNode = $('LLM synthesis');\nif (llmNode) {\n  try {\n    llmUnavailable = llmNode.first().json._llm_unavailable || false;\n  } catch (e) {\n    // Le node existe dans le workflow mais .first() a échoué — fail-safe : on\n    // marque unavailable pour que l'examen humain reste renforcé en cas de\n    // doute. L'erreur est tracée via _llm_read_error.\n    llmUnavailable = true;\n    proposal._llm_read_error = String(e).slice(0, 200);\n  }\n}\nconst base = { ...proposal, _llm_unavailable: llmUnavailable };\n\nif (decision === 'approve') {\n  return { json: { ...base, _outcome: 'approve', _operator: body.operator || '?',\n    _report: '[db-write-pipeline] proposition ' + sid + ' APPROUVEE par ' + (body.operator || '?') + '.' } };\n}\nif (decision === 'reject') {\n  return { json: { ...base, _outcome: 'reject', _operator: body.operator || '?', _reason: body.reason || '',\n    _report: '[db-write-pipeline] proposition ' + sid + ' REJETEE par ' + (body.operator || '?') + ' \\u2014 motif : ' + (body.reason || '') } };\n}\nreturn { json: { ...base, _outcome: 'expired',\n  _report: '[db-write-pipeline] proposition ' + sid + ' EXPIREE \\u2014 aucune decision sous 24 h.' } };"
+      },
+      "id": "node-build-decision",
+      "name": "Build decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-outcome-approve",
+              "leftValue": "={{ $json._outcome }}",
+              "rightValue": "approve",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-approved-final",
+      "name": "IF approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-outcome-expired",
+              "leftValue": "={{ $json._outcome }}",
+              "rightValue": "expired",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-expired",
+      "name": "IF expired?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3760,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PA_ADMIN_BASE_URL }}/api/v1/admin/db-approvals/{{ $('Register approval').first().json.submission_id }}/expire",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.ADMIN_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-mark-expired",
+      "name": "Mark expired",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HSP3.1 — trust_level effectif = override BDD (app_settings.db_pipeline_trust_levels)\n// sinon manifest.trust_level_initial. n8n consulte l'endpoint PA get-trust-level ;\n// fail-safe : si PA injoignable/erreur, fallback sur le manifest seul (comportement\n// HSP3 V1 préservé — ne casse pas le pipeline si PA indispo).\nconst https = require('https');\nconst http = require('http');\nconst j = $input.first().json;\nconst manifest = j._manifest_snapshot || {};\nconst initialLevel = manifest.trust_level_initial || 'manual';\n\nlet effective = initialLevel;\ntry {\n  const paUrl = $env.PA_ADMIN_BASE_URL + '/api/v1/admin/db-pipeline/get-trust-level';\n  const internalKey = $env.INTERNAL_API_KEY;\n  const body = JSON.stringify({ procedure: j.procedure, manifest_trust_level_initial: initialLevel });\n  const result = await new Promise((resolve, reject) => {\n    const u = new URL(paUrl);\n    const lib = u.protocol === 'https:' ? https : http;\n    const req = lib.request({\n      method: 'POST', hostname: u.hostname, port: u.port || (u.protocol === 'https:' ? 443 : 80),\n      path: u.pathname,\n      headers: { 'Content-Type': 'application/json', 'X-Internal-API-Key': internalKey, 'Content-Length': Buffer.byteLength(body) },\n    }, (res) => { let buf = ''; res.on('data', (c) => { buf += c; }); res.on('end', () => resolve({ status: res.statusCode, body: buf })); });\n    req.on('error', reject);\n    req.write(body); req.end();\n  });\n  if (result.status === 200) {\n    const parsed = JSON.parse(result.body);\n    if (parsed.effective_trust_level) effective = parsed.effective_trust_level;\n  }\n  // status !== 200 → garde le fallback manifest (effective = initialLevel).\n} catch (e) {\n  // PA injoignable / parse error → fail-safe sur le manifest.\n  effective = initialLevel;\n}\n\nif (effective === 'frozen') {\n  return { json: { ...j, _trust_level: 'frozen', _response_status: 'rejected', _response_stage: 'trust_level_frozen', _report: '[db-write-pipeline] proposal ' + j.submission_id + ' REJECTED \\u2014 procedure trust_level=frozen.' } };\n}\nif (effective === 'caps_only' && (manifest.money_tier === 'cab' || manifest.money_tier === 'non_money')) {\n  return { json: { ...j, _trust_level: 'caps_only', _skip_human_gate: true } };\n}\nreturn { json: { ...j, _trust_level: 'manual', _skip_human_gate: false } };"
+      },
+      "id": "node-trust-routing",
+      "name": "Trust level routing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-trust-frozen",
+              "leftValue": "={{ $json._trust_level }}",
+              "rightValue": "frozen",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-trust-frozen",
+      "name": "IF trust frozen",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        550,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PA_ADMIN_BASE_URL }}/api/v1/admin/db-pipeline/build-summary",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ procedure: $json.procedure, manifest: $json._manifest_snapshot || {}, args: $json.args || {} }) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "node-build-summary-http",
+      "name": "Build summary HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2580,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HSP3 M3 — fige summary_fr dans la proposal avant Register approval.\nconst prev = $('LLM synthesis').first().json;\nconst resp = $input.first().json || {};\nconst summary = resp.summary_fr || null;\nconst summaryError = resp.summary_error || null;\nreturn { json: { ...prev, _summary_fr: summary, _summary_error: summaryError } };"
+      },
+      "id": "node-merge-summary",
+      "name": "Merge summary into proposal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2580,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PA_ADMIN_BASE_URL }}/api/v1/admin/db-pipeline/compute-flags",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ procedure: $json.procedure, money_tier: ($json._manifest_snapshot && $json._manifest_snapshot.money_tier) || 'non_money', user_id: ($json.args && $json.args.user_id) || '', current_amount_cents: ($json.args && $json.args.amount_cents) || 0 }) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "node-build-flags-http",
+      "name": "Build flags HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2700,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HSP3 M4 — fige anomaly_flags dans la proposal.\nconst prev = $('Merge summary into proposal').first().json;\nconst resp = $input.first().json || {};\nconst flags = (resp.anomaly_flags && typeof resp.anomaly_flags === 'object') ? resp.anomaly_flags : {};\nreturn { json: { ...prev, _anomaly_flags: flags } };"
+      },
+      "id": "node-merge-flags",
+      "name": "Merge flags into proposal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2700,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-skip-gate",
+              "leftValue": "={{ $json._skip_human_gate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-skip-gate",
+      "name": "IF skip human gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2700,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT status FROM db_write_approvals WHERE submission_id = '{{ $('Register approval').first().json.submission_id }}'",
+        "options": {}
+      },
+      "id": "node-check-status-db",
+      "name": "Check status in DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        3460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-status-approved-db",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-status-approved",
+      "name": "IF status approved (DB)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-mode-graduation",
+              "leftValue": "={{ $('IF HMAC OK').first().json.mode }}",
+              "rightValue": "graduation",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-mode-graduation",
+      "name": "IF mode graduation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PA_ADMIN_BASE_URL }}/api/v1/admin/db-pipeline/apply-graduation",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "={{ $env.INTERNAL_API_KEY }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ procedure: $json.procedure, new_trust_level: ($json.args && $json.args.new_trust_level) || '', money_tier: ($json._manifest_snapshot && $json._manifest_snapshot.money_tier) || 'non_money' }) }}",
+        "options": {}
+      },
+      "id": "node-apply-graduation",
+      "name": "Apply graduation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3780,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HSP4 M2 — re-vérification d'identité après HMAC.\n// 3 checks : (1) agent_id matche regex, (2) fenêtre anti-replay 5 min,\n// (3) agent_id ∈ manifest.allowed_callers (manifest chargé via PA).\nconst crypto = require('crypto');\nconst https = require('https');\nconst proposal = $input.first().json;\n\n// Check 1 — regex agent_id.\nconst aid = proposal.agent_id || '';\nif (!/^[a-z][a-z0-9_-]{2,31}$/.test(aid)) {\n  return { json: { ...proposal, _identity_status: 'invalid_agent_id', _identity_detail: 'agent_id ne respecte pas la regex ^[a-z][a-z0-9_-]{2,31}$' } };\n}\n\n// Check 2 — proposed_at dans la fenêtre 5 min.\nconst proposedAt = Date.parse(proposal.proposed_at || '');\nif (Number.isNaN(proposedAt)) {\n  return { json: { ...proposal, _identity_status: 'invalid_proposed_at', _identity_detail: 'proposed_at absent ou non-ISO-8601' } };\n}\nconst nowMs = Date.now();\nconst skewMs = Math.abs(nowMs - proposedAt);\nif (skewMs > 5 * 60 * 1000) {\n  return { json: { ...proposal, _identity_status: 'stale_proposal', _identity_detail: `proposed_at hors fenêtre 5 min (skew=${Math.round(skewMs/1000)}s)` } };\n}\n\n// Check 3 — allowed_callers via fetch manifeste depuis PA.\n// On charge le manifeste TOML décodé via un endpoint PA qui le sert en\n// JSON (équivalent du dict `body.manifest` côté validate-args). Pour\n// V1.1 on lit le fichier directement via fs (les manifestes sont sur\n// le même volume Mac mini que n8n).\nconst fs = require('fs');\nconst manifestPath = `/Users/guillaume/Cursor/Ratis/db/procedures/${proposal.procedure}.manifest.toml`;\nlet allowedCallers = [];\ntry {\n  const raw = fs.readFileSync(manifestPath, 'utf-8');\n  // Parsing TOML très simple : on cherche la ligne `allowed_callers = [...]`.\n  const m = raw.match(/allowed_callers\\s*=\\s*\\[([^\\]]*)\\]/);\n  if (m) {\n    allowedCallers = m[1].split(',').map(s => s.trim().replace(/^\"|\"$/g, '')).filter(Boolean);\n  }\n} catch (e) {\n  return { json: { ...proposal, _identity_status: 'manifest_unreadable', _identity_detail: `manifest ${proposal.procedure}.manifest.toml inaccessible : ${e.message}` } };\n}\nif (!allowedCallers.includes(aid)) {\n  return { json: { ...proposal, _identity_status: 'caller_not_allowed', _identity_detail: `agent_id ${aid} absent de allowed_callers (${allowedCallers.join(', ')})` } };\n}\n\nreturn { json: { ...proposal, _identity_status: 'ok' } };"
+      },
+      "id": "node-validate-identity",
+      "name": "Validate identity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-identity-ok",
+              "leftValue": "={{ $json._identity_status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-identity-ok",
+      "name": "IF identity OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={{ JSON.stringify({ status: 'rejected', reason: $json._identity_status, detail: $json._identity_detail }) }}",
+        "options": {}
+      },
+      "id": "node-respond-400-identity",
+      "name": "Respond 400 identity",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HSP4 M3 — délègue la validation des args à l'endpoint PA validate-args.\n// Single source de vérité (Python validate_args) — pas de drift JS/Python.\nconst https = require('https');\nconst http = require('http');\nconst fs = require('fs');\nconst proposal = $input.first().json;\n\n// Charge le manifeste TOML brut depuis le filesystem (même approche que\n// Validate identity — V1.1 mono-host).\nconst manifestPath = `/Users/guillaume/Cursor/Ratis/db/procedures/${proposal.procedure}.manifest.toml`;\nlet manifestText;\ntry {\n  manifestText = fs.readFileSync(manifestPath, 'utf-8');\n} catch (e) {\n  return { json: { ...proposal, _args_status: 'manifest_unreadable', _args_detail: e.message } };\n}\n\n// Très simple toml→json : on parse les sections [[args]] et les scalaires top-level\n// dont on a besoin (name, purpose, facing, direction, money_tier, trust_level_initial,\n// allowed_callers). Suffisant pour faire le body POST — PA re-valide le manifeste.\n// (Implémentation explicite plutôt que require d'une lib toml absente du runtime n8n.)\nfunction parseScalar(line) {\n  const m = line.match(/^([a-z_]+)\\s*=\\s*(.+)$/);\n  if (!m) return null;\n  let v = m[2].trim();\n  if (v.startsWith('\"') && v.endsWith('\"')) v = v.slice(1, -1);\n  else if (/^(true|false)$/.test(v)) v = v === 'true';\n  else if (/^[0-9]+$/.test(v)) v = Number(v);\n  else if (v.startsWith('[')) v = v.slice(1, -1).split(',').map(s => s.trim().replace(/^\"|\"$/g, '')).filter(Boolean);\n  return [m[1], v];\n}\nconst manifest = { args: [], affects: [] };\nlet current = null;\nfor (const line of manifestText.split('\\n')) {\n  const l = line.trim();\n  if (l === '' || l.startsWith('#')) continue;\n  if (l === '[[args]]') { current = {}; manifest.args.push(current); continue; }\n  if (l === '[[affects]]') { current = {}; manifest.affects.push(current); continue; }\n  const kv = parseScalar(l);\n  if (!kv) continue;\n  if (current === null) { manifest[kv[0]] = kv[1]; } else { current[kv[0]] = kv[1]; }\n}\n\n// Appel PA validate-args.\nconst paUrl = $env.PA_INTERNAL_BASE_URL + '/api/v1/admin/db-pipeline/validate-args';\nconst internalKey = $env.INTERNAL_API_KEY;\nconst body = JSON.stringify({ manifest, args: proposal.args });\nconst result = await new Promise((resolve, reject) => {\n  const u = new URL(paUrl);\n  const lib = u.protocol === 'https:' ? https : http;\n  const req = lib.request({\n    method: 'POST',\n    hostname: u.hostname,\n    port: u.port || (u.protocol === 'https:' ? 443 : 80),\n    path: u.pathname,\n    headers: { 'Content-Type': 'application/json', 'X-Internal-API-Key': internalKey, 'Content-Length': Buffer.byteLength(body) },\n  }, (res) => {\n    let buf = '';\n    res.on('data', (c) => { buf += c; });\n    res.on('end', () => resolve({ status: res.statusCode, body: buf }));\n  });\n  req.on('error', reject);\n  req.write(body);\n  req.end();\n});\nif (result.status !== 200) {\n  return { json: { ...proposal, _args_status: 'pa_unreachable', _args_detail: `HTTP ${result.status} from PA validate-args` } };\n}\nconst parsed = JSON.parse(result.body);\nif (!parsed.ok) {\n  return { json: { ...proposal, _args_status: 'invalid_args', _args_detail: parsed.detail, _manifest_snapshot: manifest } };\n}\nreturn { json: { ...proposal, _args_status: 'ok', _manifest_snapshot: manifest } };"
+      },
+      "id": "node-validate-args",
+      "name": "Validate args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-args-ok",
+              "leftValue": "={{ $json._args_status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-args-ok",
+      "name": "IF args OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={{ JSON.stringify({ status: 'rejected', reason: $json._args_status, detail: $json._args_detail }) }}",
+        "options": {}
+      },
+      "id": "node-respond-400-args",
+      "name": "Respond 400 args",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HMAC Verify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMAC Verify": {
+      "main": [
+        [
+          {
+            "node": "IF HMAC OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF HMAC OK": {
+      "main": [
+        [
+          {
+            "node": "Rate limit webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sandbox Up": {
+      "main": [
+        [
+          {
+            "node": "Dry-run + invariants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run + invariants": {
+      "main": [
+        [
+          {
+            "node": "Money-table scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF invariants OK": {
+      "main": [
+        [
+          {
+            "node": "Build LLM prompts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build rejected (invariants)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LLM prompts": {
+      "main": [
+        [
+          {
+            "node": "LLM pass 1 (intent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM pass 1 (intent)": {
+      "main": [
+        [
+          {
+            "node": "LLM pass 2 (magic case)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM pass 2 (magic case)": {
+      "main": [
+        [
+          {
+            "node": "LLM synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM synthesis": {
+      "main": [
+        [
+          {
+            "node": "Respond to agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build rejected (invariants)": {
+      "main": [
+        [
+          {
+            "node": "Respond to agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to agent": {
+      "main": [
+        [
+          {
+            "node": "IF machine gates passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sandbox Down": {
+      "main": [
+        [
+          {
+            "node": "IF invariants OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF machine gates passed?": {
+      "main": [
+        [
+          {
+            "node": "Build summary HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Report Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Money-table scan": {
+      "main": [
+        [
+          {
+            "node": "Sandbox Down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register approval": {
+      "main": [
+        [
+          {
+            "node": "Notify Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Discord": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Build decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build decision": {
+      "main": [
+        [
+          {
+            "node": "Check status in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF approved?": {
+      "main": [
+        [
+          {
+            "node": "IF mode graduation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF expired?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF expired?": {
+      "main": [
+        [
+          {
+            "node": "Mark expired",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Report Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark expired": {
+      "main": [
+        [
+          {
+            "node": "Report Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trust level routing": {
+      "main": [
+        [
+          {
+            "node": "IF trust frozen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF trust frozen": {
+      "main": [
+        [
+          {
+            "node": "Respond to agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sandbox Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build summary HTTP": {
+      "main": [
+        [
+          {
+            "node": "Merge summary into proposal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge summary into proposal": {
+      "main": [
+        [
+          {
+            "node": "Build flags HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build flags HTTP": {
+      "main": [
+        [
+          {
+            "node": "Merge flags into proposal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge flags into proposal": {
+      "main": [
+        [
+          {
+            "node": "IF skip human gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF skip human gate": {
+      "main": [
+        [
+          {
+            "node": "Execute (HSP4 checksum)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Register approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check status in DB": {
+      "main": [
+        [
+          {
+            "node": "IF status approved (DB)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF status approved (DB)": {
+      "main": [
+        [
+          {
+            "node": "IF approved?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF expired?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF mode graduation": {
+      "main": [
+        [
+          {
+            "node": "Apply graduation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute (HSP4 checksum)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply graduation": {
+      "main": [
+        [
+          {
+            "node": "Report Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate identity": {
+      "main": [
+        [
+          {
+            "node": "IF identity OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF identity OK": {
+      "main": [
+        [
+          {
+            "node": "Validate args",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400 identity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate args": {
+      "main": [
+        [
+          {
+            "node": "IF args OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF args OK": {
+      "main": [
+        [
+          {
+            "node": "Trust level routing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400 args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute (HSP4 checksum)": {
+      "main": [
+        [
+          {
+            "node": "Report Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate limit webhook": {
+      "main": [
+        [
+          {
+            "node": "IF rate limit OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF rate limit OK": {
+      "main": [
+        [
+          {
+            "node": "Validate identity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 429",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "id": "db-write-pipeline-v0",
+  "tags": [],
+  "pinData": {},
+  "meta": {}
+}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Tableau de bord admin</h1>
+<p class="mb-6 text-slate-600">Bienvenue {{ session.operator }}. Choisissez une page :</p>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <a href="/admin/ui/stores-pending" class="bg-white shadow rounded p-4 hover:bg-slate-100">
+    <div class="font-semibold">Stores pending</div>
+    <div class="text-sm text-slate-500">Valider les magasins suggérés par les utilisateurs.</div>
+  </a>
+  <a href="/admin/ui/knowledge-queue" class="bg-white shadow rounded p-4 hover:bg-slate-100">
+    <div class="font-semibold">Knowledge OCR</div>
+    <div class="text-sm text-slate-500">Corriger ou rejeter des fragments OCR ambigus.</div>
+  </a>
+  <a href="/admin/ui/audit-log" class="bg-white shadow rounded p-4 hover:bg-slate-100">
+    <div class="font-semibold">Audit log</div>
+    <div class="text-sm text-slate-500">Inspecter le pipeline pour un receipt / parsed-ticket / scan.</div>
+  </a>
+  <a href="/admin/ui/users/search" class="bg-white shadow rounded p-4 hover:bg-slate-100">
+    <div class="font-semibold">Utilisateurs</div>
+    <div class="text-sm text-slate-500">Recherche (UUID / RTS / email) + détail + historique scans.</div>
+  </a>
+  <a href="/admin/ui/settings" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-settings">
+    <div class="font-semibold">Settings runtime</div>
+    <div class="text-sm text-slate-500">Configuration (CAB, missions, BP) éditable via UI · sections frozen visibles read-only.</div>
+  </a>
+  <a href="/admin/ui/battlepass" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-battlepass">
+    <div class="font-semibold">Battle Pass</div>
+    <div class="text-sm text-slate-500">Gérer les saisons + milestones (tiers).</div>
+  </a>
+  <a href="/admin/ui/missions" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-missions">
+    <div class="font-semibold">Missions</div>
+    <div class="text-sm text-slate-500">Catalogue de missions (daily / weekly).</div>
+  </a>
+  <a href="/admin/ui/challenges" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-challenges">
+    <div class="font-semibold">Challenges</div>
+    <div class="text-sm text-slate-500">Défis communautaires + milestones (single-active).</div>
+  </a>
+  <a href="/admin/ui/mystery" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-mystery">
+    <div class="font-semibold">Mystery Product</div>
+    <div class="text-sm text-slate-500">Défis hebdomadaires "produit mystère" (CRUD + delete).</div>
+  </a>
+  <a href="/admin/ui/reward-config" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-reward-config">
+    <div class="font-semibold">Rewards Config</div>
+    <div class="text-sm text-slate-500">Base CAB par action_type (catalogue gamif).</div>
+  </a>
+  <a href="/admin/ui/streak-tier" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-streak-tier">
+    <div class="font-semibold">Streak Tiers</div>
+    <div class="text-sm text-slate-500">Échelle days → multiplier CAB.</div>
+  </a>
+  <a href="/admin/ui/name-resolutions/queue" class="bg-white shadow rounded p-4 hover:bg-slate-100" data-testid="tile-nrc">
+    <div class="font-semibold">Arbitrage NRC</div>
+    <div class="text-sm text-slate-500">
+      Queue de labels controverse / unverified à arbitrer.
+      {% if nrc_queue_total is defined and nrc_queue_total > 0 %}
+        <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800" data-testid="nrc-counter">
+          {{ nrc_queue_total }} à traiter
+        </span>
+      {% endif %}
+    </div>
+  </a>
+</div>
+{% endblock %}

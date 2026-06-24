@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+#
+# glt — wrapper CLI GlitchTip pour Ratis
+#
+# Tous les appels API utilisent le token stocké dans Keychain
+# (service=ratis-agent-mcp, account=admin-glitchtip).
+# Tu n'as JAMAIS besoin de manipuler le token toi-même.
+#
+# Convention DSN : ops-glitchtip-dsn-<project_slug>
+#
+# Install : `chmod +x ~/glitchtip/bin/glt && export PATH="$HOME/glitchtip/bin:$PATH"`
+# Usage : `glt help`
+
+set -euo pipefail
+
+# ───────────────────────────────── Config ──────────────────────────────────
+GLT_API="${GLT_API:-http://localhost:8000/api/0}"
+GLT_ORG="${GLT_ORG:-ratis}"
+GLT_TEAM="${GLT_TEAM:-ratis}"
+KEYCHAIN_SVC="ratis-agent-mcp"
+
+# ───────────────────────────────── Helpers ─────────────────────────────────
+_token() {
+  security find-generic-password -s "$KEYCHAIN_SVC" -a admin-glitchtip -w 2>/dev/null \
+    || { echo "ERROR: admin-glitchtip token not found in Keychain. Create one via UI + paste-to-keychain." >&2; exit 1; }
+}
+
+_api() {
+  local method="$1"; shift
+  local path="$1"; shift
+  curl -s -X "$method" \
+    -H "Authorization: Bearer $(_token)" \
+    -H "Content-Type: application/json" \
+    "$@" "$GLT_API$path"
+}
+
+_keychain_store_dsn() {
+  local project="$1" dsn="$2"
+  security add-generic-password -s "$KEYCHAIN_SVC" -a "ops-glitchtip-dsn-$project" -U -w "$dsn" 2>&1 | head -1 >&2
+}
+
+_keychain_remove_dsn() {
+  local project="$1"
+  security delete-generic-password -s "$KEYCHAIN_SVC" -a "ops-glitchtip-dsn-$project" 2>/dev/null || true
+}
+
+# ─────────────────────────────── Sous-commandes ────────────────────────────
+
+cmd_help() {
+  cat <<EOF
+glt — wrapper CLI GlitchTip pour Ratis
+
+Usage : glt <command> [args]
+
+Commands:
+  list-projects                          Liste les projets de l'org
+  list-issues <project> [--limit N]      Issues d'un projet (défaut: 20)
+  list-events <project> [--limit N]      Derniers events d'un projet
+  add-project <name> [--platform X]      Crée projet + stocke DSN dans Keychain
+                                          platform défaut: python
+                                          (react-native, python, javascript, go, ruby, ...)
+  remove-project <slug>                  Supprime projet + remove DSN
+  show-dsn <project> [--public]          Affiche DSN (réservé, pas printé par défaut)
+                                          Sans flag : juste confirme existence + longueur
+  resolve <issue_id>                     Marque issue comme résolue
+  status                                 Récap : org, projets, counts, health
+  orgs                                   Liste orgs (debug)
+  teams                                  Liste teams (debug)
+
+Env vars (override):
+  GLT_API      $GLT_API
+  GLT_ORG      $GLT_ORG
+  GLT_TEAM     $GLT_TEAM
+
+Récupérer un DSN dans un service client (ex. .env d'un service Ratis):
+  SENTRY_DSN=\$(security find-generic-password -s $KEYCHAIN_SVC -a ops-glitchtip-dsn-<project> -w)
+EOF
+}
+
+cmd_list-projects() {
+  _api GET "/organizations/$GLT_ORG/projects/" | jq -r '.[] | "  \(.slug)  platform=\(.platform // "?")  name=\(.name)"'
+}
+
+cmd_list-issues() {
+  local project="${1:-}"
+  local limit=20
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --limit) limit="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -z "$project" ]] && { echo "Usage: glt list-issues <project> [--limit N]" >&2; exit 1; }
+  _api GET "/projects/$GLT_ORG/$project/issues/?limit=$limit" \
+    | jq -r '.[] | "  [\(.status)]  \(.id)  \(.title)  events=\(.count) last=\(.lastSeen)"'
+}
+
+cmd_list-events() {
+  local project="${1:-}"
+  local limit=10
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --limit) limit="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -z "$project" ]] && { echo "Usage: glt list-events <project> [--limit N]" >&2; exit 1; }
+  _api GET "/projects/$GLT_ORG/$project/events/?limit=$limit" \
+    | jq -r '.[] | "  \(.dateCreated)  \(.message // .title // "(no message)")"'
+}
+
+cmd_add-project() {
+  local name="${1:-}"
+  local platform="python"
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --platform) platform="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -z "$name" ]] && { echo "Usage: glt add-project <name> [--platform X]" >&2; exit 1; }
+
+  # Crée projet
+  local response
+  response=$(_api POST "/teams/$GLT_ORG/$GLT_TEAM/projects/" \
+    -d "{\"name\":\"$name\",\"platform\":\"$platform\"}")
+  local slug
+  slug=$(echo "$response" | jq -r '.slug // empty')
+  if [[ -z "$slug" ]]; then
+    echo "ERROR: project creation failed: $response" >&2
+    exit 1
+  fi
+
+  # Récupère + stocke DSN
+  local dsn
+  dsn=$(_api GET "/projects/$GLT_ORG/$slug/keys/" | jq -r '.[0].dsn.public')
+  if [[ "${dsn:0:7}" != "http" ]] && [[ "${dsn:0:8}" != "https://" ]]; then
+    echo "ERROR: invalid DSN fetched: '$dsn'" >&2
+    exit 1
+  fi
+  _keychain_store_dsn "$slug" "$dsn"
+
+  echo "✓ Project '$slug' created (platform=$platform)"
+  echo "✓ DSN stored in Keychain as 'ops-glitchtip-dsn-$slug'"
+  echo ""
+  echo "To use in your service .env:"
+  echo "  SENTRY_DSN=\$(security find-generic-password -s $KEYCHAIN_SVC -a ops-glitchtip-dsn-$slug -w)"
+}
+
+cmd_remove-project() {
+  local slug="${1:-}"
+  [[ -z "$slug" ]] && { echo "Usage: glt remove-project <slug>" >&2; exit 1; }
+  read -p "Delete project '$slug' from GlitchTip + Keychain DSN? [y/N] " yn
+  [[ "$yn" != "y" ]] && { echo "Aborted."; exit 0; }
+  _api DELETE "/projects/$GLT_ORG/$slug/" -o /dev/null -w "DELETE → HTTP %{http_code}\n"
+  _keychain_remove_dsn "$slug"
+  echo "✓ Removed."
+}
+
+cmd_show-dsn() {
+  local project="${1:-}"
+  local show_full=false
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --public) show_full=true; shift ;;
+      *) shift ;;
+    esac
+  done
+  [[ -z "$project" ]] && { echo "Usage: glt show-dsn <project> [--public]" >&2; exit 1; }
+  local dsn
+  dsn=$(security find-generic-password -s "$KEYCHAIN_SVC" -a "ops-glitchtip-dsn-$project" -w 2>/dev/null) || {
+    echo "ERROR: DSN not found for $project" >&2; exit 1
+  }
+  if [[ "$show_full" == true ]]; then
+    echo "$dsn"
+  else
+    echo "DSN exists for $project (${#dsn} chars, prefix=${dsn:0:20}...). Use --public to display full value."
+  fi
+}
+
+cmd_resolve() {
+  local issue="${1:-}"
+  [[ -z "$issue" ]] && { echo "Usage: glt resolve <issue_id>" >&2; exit 1; }
+  _api PUT "/issues/$issue/" -d '{"status":"resolved"}' -o /dev/null -w "PUT → HTTP %{http_code}\n"
+}
+
+cmd_status() {
+  echo "GlitchTip status"
+  echo "  API  : $GLT_API"
+  echo "  Org  : $GLT_ORG"
+  echo "  Team : $GLT_TEAM"
+  echo ""
+  echo "Projects:"
+  cmd_list-projects
+}
+
+cmd_orgs() {
+  _api GET "/organizations/" | jq -r '.[] | "  slug=\(.slug)  name=\(.name)"'
+}
+
+cmd_teams() {
+  _api GET "/organizations/$GLT_ORG/teams/" | jq -r '.[] | "  slug=\(.slug)  name=\(.name)"'
+}
+
+# ─────────────────────────────── Dispatch ──────────────────────────────────
+cmd="${1:-help}"
+shift || true
+func="cmd_$cmd"
+if declare -f "$func" >/dev/null; then
+  "$func" "$@"
+else
+  echo "Unknown command: $cmd" >&2
+  cmd_help
+  exit 1
+fi

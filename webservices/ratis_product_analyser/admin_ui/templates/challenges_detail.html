@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Challenge{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/challenges" class="text-sm text-slate-600 hover:underline">← Retour aux challenges</a>
+</div>
+
+{% if not challenge %}
+  <h1 class="text-2xl font-bold mb-3">Challenge introuvable</h1>
+  <p class="text-sm text-slate-600">
+    {% if error %}{{ error }}{% else %}Challenge introuvable.{% endif %}
+  </p>
+{% else %}
+<h1 class="text-2xl font-bold mb-2 flex items-center gap-3">
+  <span>{{ challenge.title }}</span>
+  {% if challenge.is_active %}
+    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded">Active</span>
+  {% else %}
+    <span class="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded">{{ challenge.status or "Inactive" }}</span>
+  {% endif %}
+</h1>
+<p class="text-sm text-slate-500 font-mono mb-4">
+  {{ challenge.action_type }} · objectif {{ challenge.objective }} ·
+  {{ challenge.starts_at }} → {{ challenge.ends_at }}
+</p>
+<p class="text-sm text-slate-600 mb-4">
+  Progression : <strong>{{ challenge.current_count }}</strong> / {{ challenge.objective }} ·
+  {{ challenge.milestone_count }} milestone(s) configuré(s).
+</p>
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<section class="mb-6">
+  <form method="post" action="/admin/ui/challenges/{{ challenge.id }}" data-testid="challenge-toggle-form">
+    {% if challenge.is_active %}
+      <input type="hidden" name="action" value="deactivate" />
+      <button type="submit"
+              class="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700"
+              data-testid="challenge-deactivate-button">
+        Désactiver ce challenge
+      </button>
+      <span class="ml-2 text-xs text-slate-500">
+        Aucun autre challenge ne sera activé automatiquement.
+      </span>
+    {% else %}
+      <input type="hidden" name="action" value="activate" />
+      <button type="submit"
+              class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
+              data-testid="challenge-activate-button">
+        Activer ce challenge
+      </button>
+      <span class="ml-2 text-xs text-slate-500">
+        Un seul challenge actif à la fois — toute autre activation sera rejetée (409).
+      </span>
+    {% endif %}
+  </form>
+</section>
+
+<section>
+  <h2 class="text-lg font-semibold mb-3">Nouveau milestone (palier)</h2>
+  <p class="text-xs text-slate-500 mb-3">
+    Astuce : <strong>threshold</strong> = compteur partagé requis pour débloquer ;
+    <strong>reward_type</strong> ∈ {cab, xp, multiplier, skin} ; <strong>reward_value</strong> = JSON
+    (ex: <code>{"amount": 100}</code>, <code>{"factor": 1.5}</code>).
+  </p>
+  <form method="post" action="/admin/ui/challenges/{{ challenge.id }}/milestones" class="bg-white shadow rounded p-4 space-y-3" data-testid="milestone-create-form">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="threshold">Threshold</label>
+        <input id="threshold" name="threshold" type="number" min="1" required
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="reward_type">Reward type</label>
+        <select id="reward_type" name="reward_type" required
+                class="w-full text-sm border border-slate-300 rounded p-2">
+          <option value="cab">cab</option>
+          <option value="xp">xp</option>
+          <option value="multiplier">multiplier</option>
+          <option value="skin">skin</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="reward_value">Reward value (JSON)</label>
+      <textarea id="reward_value" name="reward_value" rows="2" required
+                class="w-full text-sm border border-slate-300 rounded p-2 font-mono"
+                placeholder='{"amount": 100}'></textarea>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="label">Label (optionnel)</label>
+        <input id="label" name="label" type="text" maxlength="120"
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="sort_order">Sort order</label>
+        <input id="sort_order" name="sort_order" type="number" value="0"
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+    </div>
+    <div>
+      <button type="submit"
+              class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700"
+              data-testid="milestone-create-button">
+        Créer le milestone
+      </button>
+    </div>
+  </form>
+  <p class="mt-3 text-xs text-slate-500">
+    Le listing des milestones existants n'est pas exposé par RW (PR1) — l'opérateur
+    consulte la base directement si besoin.
+  </p>
+</section>
+{% endif %}
+{% endblock %}

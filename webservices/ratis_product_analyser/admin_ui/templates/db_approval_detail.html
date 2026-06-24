@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Approbation {{ a.submission_id[:8] }}{% endblock %}
+{% block content %}
+
+{# HSP3 — Layout figé : (1) flags M4 → (2) résumé M3 H1 jaune pâle → (3) corps → (4) challenge M1. #}
+
+{# === M4 anomaly flags === #}
+{% set red_flags = ["amount_above_p95", "user_repeat_in_24h", "caps_already_warning"] %}
+{% set orange_flags = ["first_use_of_procedure", "approaching_daily_cap"] %}
+{% set active_flags = a.anomaly_flags | default({}) %}
+{% set active_flag_names = [] %}
+{% for fname, fval in active_flags.items() %}{% if fval %}{% set _ = active_flag_names.append(fname) %}{% endif %}{% endfor %}
+{% if active_flag_names %}
+  {% set has_red = active_flag_names | select("in", red_flags) | list | length > 0 %}
+  {% set has_orange = active_flag_names | select("in", orange_flags) | list | length > 0 %}
+  <div class="anomaly-banner anomaly-{{ 'red' if has_red else ('orange' if has_orange else 'gray') }}">
+    <strong>{{ '🚨' if has_red else '⚠️' }} {{ active_flag_names | length }} anomali{{ 'e' if active_flag_names | length == 1 else 'es' }} détectée{{ 's' if active_flag_names | length > 1 else '' }} :</strong>
+    <ul>
+      {% if "first_use_of_procedure" in active_flag_names %}
+        <li>⚠️ Première utilisation jamais approuvée de cette procédure</li>
+      {% endif %}
+      {% if "amount_above_p95" in active_flag_names %}
+        <li>⚠️ Montant dans le top 5 % pour cette procédure (30 derniers jours)</li>
+      {% endif %}
+      {% if "user_repeat_in_24h" in active_flag_names %}
+        <li>⚠️ Cet utilisateur a déjà reçu &gt;3 opérations dans les 24 dernières heures</li>
+      {% endif %}
+      {% if "approaching_daily_cap" in active_flag_names %}
+        <li>⚠️ Le total CAB du jour approchera ou dépassera le seuil warn (20 000 CAB)</li>
+      {% endif %}
+      {% if "proposed_outside_business_hours" in active_flag_names %}
+        <li>⚠️ Proposition reçue hors heures ouvrées (Europe/Paris)</li>
+      {% endif %}
+      {% if "caps_already_warning" in active_flag_names %}
+        <li>🚨 Les caps journaliers CAB sont déjà en zone warn (cumul 24h &gt; seuil)</li>
+      {% endif %}
+    </ul>
+  </div>
+{% endif %}
+
+{# === M3 résumé H1 jaune pâle === #}
+{% if a.summary_fr %}
+  <h1 class="hsp3-summary">{{ a.summary_fr | replace('\n', '<br/>') | safe }}</h1>
+{% else %}
+  <h1 class="hsp3-summary hsp3-summary-error">⚠️ Résumé indisponible — voir détail manuel.{% if a.summary_error %} ({{ a.summary_error }}){% endif %}</h1>
+{% endif %}
+
+{# === Badges + flash === #}
+<div class="mb-4">
+  <a href="/admin/ui/db-approvals" class="text-blue-700 hover:underline text-sm">← Retour à la liste</a>
+</div>
+{% if flash %}
+  <div class="mb-4 bg-amber-100 border border-amber-300 text-amber-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+<div class="mb-4 space-x-1">
+  {% if a.touches_money_tables %}<span class="inline-block bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs" data-testid="badge-money">🔴 tables-argent</span>{% endif %}
+  {% if a.llm_unavailable %}<span class="inline-block bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs" data-testid="badge-llm">⚠️ examen renforcé</span>{% endif %}
+  {% if a.break_glass %}<span class="inline-block bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs" data-testid="badge-bg">⚡ break-glass</span>{% endif %}
+  <span class="inline-block bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs">statut : {{ a.status }}</span>
+</div>
+
+{# === Corps habituel (rationale, args, checks, LLM feedback) === #}
+<section class="proposal-body">
+  <h2 class="font-bold mb-2">Détail proposition {{ a.submission_id[:8] }}</h2>
+  <p><strong>Procédure :</strong> {{ a.procedure }} ({{ a.mode }})</p>
+  <p><strong>Args :</strong> <code>{{ a.args | tojson }}</code></p>
+  {% if a.rationale %}<p><strong>Rationale :</strong> {{ a.rationale }}</p>{% endif %}
+  {% if a.client_message %}
+    <p><strong>Client message <em>(non vérifié — contenu attaquant possible)</em> :</strong></p>
+    <blockquote data-testid="client-message">{{ a.client_message }}</blockquote>
+  {% endif %}
+  {% if a.investigation %}<p><strong>Investigation :</strong> <span data-testid="investigation">{{ a.investigation }}</span></p>{% endif %}
+  {% if a.new_procedure_sql %}
+    <p><strong>SQL nouvelle procédure :</strong></p>
+    <pre class="bg-slate-50 p-2 rounded text-xs overflow-x-auto">{{ a.new_procedure_sql }}</pre>
+  {% endif %}
+  {% if a.checks %}
+    <p><strong>Résultats dry-run (invariants) :</strong></p>
+    <pre class="bg-slate-50 p-2 rounded text-xs overflow-x-auto" data-testid="checks">{{ a.checks | tojson(indent=2) }}</pre>
+  {% endif %}
+  {% if a.llm_feedback %}
+    <p><strong>LLM feedback :</strong></p>
+    <pre class="bg-slate-50 p-2 rounded text-xs overflow-x-auto" data-testid="llm-feedback">{{ a.llm_feedback | tojson(indent=2) }}</pre>
+  {% endif %}
+</section>
+
+{# === M1 challenge — input + JS HMAC === #}
+{% if a.status == "pending" %}
+<section class="hsp3-challenge">
+  <h2 class="font-bold mb-2 text-green-800">Approbation — tape le challenge</h2>
+  {% if a.challenge_error %}
+    <p class="flash">⚠️ Challenge non calculable : {{ a.challenge_error }}. Contacter ops.</p>
+  {% else %}
+    <p>
+      Pour approuver, tape exactement :
+      <span class="hsp3-challenge-hint" style="user-select:none;-webkit-user-select:none;">{{ a.challenge_hint }}</span>
+      (insensible à la casse et aux espaces).
+    </p>
+    <form id="hsp3-approve-form">
+      <input type="text"
+             id="hsp3-challenge-input"
+             name="challenge"
+             autocomplete="off"
+             autocorrect="off"
+             autocapitalize="off"
+             spellcheck="false"
+             data-testid="approve-btn"
+             required />
+      <button type="submit">Approuver</button>
+    </form>
+    {% if a.failed_confirms %}
+      <p class="flash">⚠️ {{ a.failed_confirms }} tentative(s) échouée(s) précédente(s).</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<form method="post" action="/admin/ui/db-approvals/{{ a.submission_id }}/reject" class="hsp3-reject">
+  <h2 class="font-bold mb-2 text-red-800">Rejeter</h2>
+  <label>Motif de rejet :</label><br/>
+  <input type="text" name="reason" data-testid="reject-reason" required />
+  <button type="submit" data-testid="reject-btn">Rejeter</button>
+</form>
+
+<script>
+  // HSP3 M2 — HMAC client-side de chaque décision via WebCrypto. Le secret
+  // est lu depuis sessionStorage (posé par /unlock).
+  document
+    .getElementById("hsp3-approve-form")
+    .addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var secret = window.sessionStorage.getItem("human_approval_secret") || "";
+      if (!secret) {
+        alert("Secret absent — re-déverrouille via /admin/ui/db-approvals/unlock");
+        return;
+      }
+      var challenge = document.getElementById("hsp3-challenge-input").value;
+      var body = JSON.stringify({
+        submission_id: "{{ a.submission_id }}",
+        decision: "approve",
+        challenge: challenge,
+        ts: Math.floor(Date.now() / 1000),
+      });
+      var keyBytes = new TextEncoder().encode(secret);
+      var bodyBytes = new TextEncoder().encode(body);
+      var key = await window.crypto.subtle.importKey(
+        "raw",
+        keyBytes,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      var sigBuf = await window.crypto.subtle.sign("HMAC", key, bodyBytes);
+      var sigHex = Array.from(new Uint8Array(sigBuf))
+        .map(function (b) { return b.toString(16).padStart(2, "0"); })
+        .join("");
+      var resp = await fetch(
+        "/admin/ui/db-approvals/{{ a.submission_id }}/approve",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-human-mac": sigHex,
+          },
+          body: body,
+          credentials: "same-origin",
+        }
+      );
+      if (resp.ok || resp.status === 303) {
+        // 303 = redirect liste — navigation manuelle.
+        window.location.href = "/admin/ui/db-approvals";
+      } else {
+        var t = await resp.text();
+        alert("Erreur " + resp.status + " : " + t);
+      }
+    });
+</script>
+{% else %}
+<div class="bg-slate-100 border border-slate-300 rounded p-4 text-sm">
+  Proposition <strong>{{ a.status }}</strong>{% if a.operator %} par {{ a.operator }}{% endif %}{% if a.decided_at %} le {{ a.decided_at }}{% endif %}.
+  {% if a.decision_reason %}<br />Motif : {{ a.decision_reason }}{% endif %}
+</div>
+{% endif %}
+
+<style>
+  .anomaly-banner { padding: 1em; margin-bottom: 1em; border-radius: 6px; }
+  .anomaly-red { background: #fee; border: 2px solid #c00; }
+  .anomaly-orange { background: #fff5e6; border: 2px solid #d80; }
+  .anomaly-gray { background: #f0f0f0; border: 1px solid #aaa; }
+  .hsp3-summary { background: #ffffd0; padding: 1em; font-size: 1.5em; line-height: 1.4; border-radius: 4px; }
+  .hsp3-summary-error { background: #ffd0d0; }
+  .hsp3-challenge-hint { font-family: monospace; background: #eef; padding: 0.2em 0.4em; }
+  .hsp3-challenge { margin-top: 1em; padding: 1em; background: #f8f8f8; border-radius: 4px; }
+  .hsp3-reject { margin-top: 1em; padding: 1em; background: #f8f8f8; border-radius: 4px; }
+</style>
+{% endblock %}

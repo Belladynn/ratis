@@ -1,0 +1,709 @@
+{
+  "tab_bar": {
+    "home": "Accueil",
+    "list": "Liste",
+    "scan": "Scan",
+    "product": "Produit",
+    "profile": "Profil"
+  },
+  "dashboard": {
+    "greeting_hello": "Bonjour",
+    "season_label": "Saison 1",
+    "season_label_level": "Saison 1 · niv. {{level}}",
+    "roi_rings": {
+      "unit": "abonnements remboursés",
+      "month_savings": "tu as économisé {{amount}}€ ce mois",
+      "multiplier": "🔥 ×{{value}} multiplicateur actif",
+      "claim_a11y": "Réclamer un anneau gagné"
+    },
+    "mystery": {
+      "label": "Produit mystère",
+      "hint": "Scanne-le\npour révéler",
+      "badge": "+500 pts",
+      "caps": "Mystère",
+      "title": "Produit du jour",
+      "cab_badge": "+{{amount}} cab"
+    },
+    "missions": {
+      "daily_title": "Missions du jour",
+      "weekly_title": "Missions de la semaine",
+      "empty_all_done": "Toutes les missions sont complétées 🎉",
+      "empty_tab": "Aucune mission pour le moment",
+      "see_all": "Voir toutes les missions →",
+      "see_all_a11y": "Voir toutes les missions"
+    },
+    "battlepass": {
+      "title": "Pass {{seasonName}}",
+      "level": "Niv. {{level}}",
+      "slash_total": " / 25",
+      "xp_line_tail": "/ {{next}} XP — palier {{nextLevel}} dans {{remaining}} XP",
+      "xp_remaining": "encore {{remaining}} pour Niv. {{nextLevel}}",
+      "days_remaining": "{{days}}j restants",
+      "season_number": "Saison {{num}}",
+      "next_reward_caps": "Prochaine récompense",
+      "tier_a11y": "Niveau {{level}}"
+    },
+    "jack": {
+      "name": "Jack",
+      "bonus": "+{{pct}}% sur tes CAB",
+      "streak_label": "jours\nde suite 🔥",
+      "streak_eyebrow": "STREAK JACK",
+      "streak_title": "Nourrir Jack",
+      "streak_title_fed": "Rassasié",
+      "streak_sub_fed": "Reviens demain",
+      "streak_pill": "+{{pct}}%",
+      "streak_days_caps": "JOURS"
+    },
+    "enrichissement": {
+      "title": "Complète une fiche",
+      "subtitle": "{{productName}} · {{field}} manquant",
+      "cta": "+{{reward}} € →"
+    },
+    "jar": {
+      "section_label": "TIRELIRE",
+      "subtitle_label": "abonnements remboursés"
+    },
+    "monthly_savings": {
+      "prefix": "Ce mois-ci :",
+      "saved": "économisés",
+      "ratio": "({{ratio}}% du prix de l'abonnement)"
+    },
+    "savings": {
+      "section_label": "ÉCONOMIES DU MOIS",
+      "lifetime_label": "TOTAL"
+    },
+    "jar_footer_remaining": "Plus que {{amount}} → palier suivant",
+    "next_achievement": {
+      "eyebrow_format": "PROCHAIN SUCCÈS · {{rarity}}",
+      "progress_format": "{{current}} / {{total}}"
+    }
+  },
+  "modals": {
+    "missions": {
+      "eyebrow": "Tes missions",
+      "title": "Missions actives"
+    },
+    "achievements": {
+      "eyebrow": "Collection",
+      "title": "Succès",
+      "stats_unlocked_label": "Débloqués",
+      "stats_in_progress_label": "En cours",
+      "stats_score_label": "Score",
+      "stats_unlocked_value": "{{n}}/{{total}}",
+      "stats_score_value": "{{pct}}%",
+      "filter_all": "Tous",
+      "filter_unlocked": "Débloqués",
+      "filter_in_progress": "En cours",
+      "filter_locked": "À faire",
+      "category_all_label": "Toutes",
+      "empty": "Aucun succès dans cette section pour l'instant.",
+      "rarity_locked": "Verrouillé",
+      "secret_locked_label": "???",
+      "card_progress_format": "{{current}}/{{target}}",
+      "next_caps": "Prochain succès · {{rarity}}"
+    }
+  },
+  "liste": {
+    "title": "Ma liste",
+    "tabs": {
+      "products": "Produits",
+      "route": "Itinéraire"
+    },
+    "tabs_v5": {
+      "products": "Liste",
+      "products_with_count": "Liste · {{count}}",
+      "itinerary": "Itinéraire"
+    },
+    "empty": {
+      "title": "Ta liste est vide",
+      "hint": "Ajoute des produits pour démarrer"
+    },
+    "computing": "Optimisation en cours…",
+    "summary": {
+      "total": "Total",
+      "savings": "Économies",
+      "distance": "Distance"
+    },
+    "add_bar": {
+      "placeholder": "Ajouter un produit…",
+      "suggestions_label": "Suggestions",
+      "templates_label": "Modèles",
+      "voice_label": "Vocal",
+      "search_empty": "Aucun produit trouvé",
+      "suggestions_eyebrow": "Suggestions"
+    },
+    "category": {
+      "frais": "Frais alimentaire",
+      "boulangerie": "Boulangerie",
+      "epicerie": "Épicerie",
+      "boissons": "Boissons",
+      "vrac": "Vrac",
+      "autres": "Autres"
+    },
+    "add_item_toast": {
+      "success": "« {{name}} » ajouté à ta liste",
+      "already_in_list": "« {{name}} » est déjà dans ta liste",
+      "list_full": "Liste pleine — supprime un article avant d'en ajouter un autre",
+      "list_not_found": "Liste introuvable — recharge l'écran",
+      "product_not_found": "Produit indisponible",
+      "quantity_too_high": "Quantité trop élevée — 30 maximum par article",
+      "network": "Impossible d'ajouter — réessaie dans un instant"
+    },
+    "scan_cta": "Scan",
+    "total_card": {
+      "total_label": "TOTAL ESTIMÉ",
+      "checked_format": "{{n}} coché · {{amount}}",
+      "checked_format_plural": "{{n}} cochés · {{amount}}",
+      "savings_label": "ÉCONOMIES",
+      "savings_subtitle": "après optimisation"
+    },
+    "item_row": {
+      "qty_label": "Qty",
+      "delete_label": "Supprimer"
+    },
+    "itinerary": {
+      "empty_message": "Optimise ta liste pour voir le meilleur itinéraire",
+      "empty_cta": "Optimiser maintenant",
+      "summary_total": "Total",
+      "summary_savings": "Économisé",
+      "summary_trip": "Trajet",
+      "summary_trip_format": "{{km}} km · {{minutes}}min",
+      "comparison_format": "{{n}} magasin économisé : -{{amount}}",
+      "comparison_format_plural": "{{n}} magasins économisés : -{{amount}}",
+      "stop_label_format": "Stop #{{n}}",
+      "stop_savings_format": "Économisé {{amount}}",
+      "start_cta": "Démarrer l'itinéraire"
+    },
+    "sheets": {
+      "suggestions_title": "Tu rachètes souvent…",
+      "suggestions_eyebrow": "Suggestions",
+      "templates_title": "Listes type",
+      "templates_eyebrow": "Démarre vite",
+      "voice_title": "Dicte ta liste",
+      "voice_eyebrow": "Mode vocal",
+      "voice_coming_soon": "Bientôt disponible"
+    },
+    "itineraire": {
+      "empty_list_title": "Ta liste est vide",
+      "empty_list_hint": "Ajoute des produits avant d'optimiser un itinéraire.",
+      "list_too_large_title": "Liste trop longue",
+      "list_too_large_hint": "Ta liste dépasse 100 articles — retires-en avant d'optimiser ton trajet.",
+      "no_route_title": "Pas encore d'itinéraire",
+      "no_route_hint": "Optimise ton trajet pour voir les magasins à visiter et combien tu économises.",
+      "stop_order": "Arrêt {{n}}",
+      "reoptimize_a11y": "Recalculer le trajet",
+      "open_in_maps_label": "Ouvrir dans Maps",
+      "open_in_maps_a11y": "Ouvrir l'itinéraire vers {{store_name}} dans l'application Maps",
+      "open_in_maps_title": "Tu vas quitter Ratis",
+      "open_in_maps_warning": "L'adresse de {{store_name}} sera envoyée à ton application Maps native (Apple Maps ou Google Maps). Cette donnée quitte Ratis et est soumise à la politique de confidentialité de l'éditeur de cette application.",
+      "open_in_maps_confirm": "Continuer",
+      "map_unavailable": "Carte indisponible — consulte la liste des arrêts ci-dessous."
+    },
+    "products_tab": {
+      "route_ready_hint": "✓ Trajet prêt — ouvre l'onglet Itinéraire"
+    },
+    "optimize_cta": {
+      "idle": "Optimiser mon trajet",
+      "computing": "Calcul en cours…"
+    },
+    "location": {
+      "title": "Position requise",
+      "body": "Active la géolocalisation pour optimiser ton trajet.",
+      "error_title": "Erreur",
+      "error_body": "Impossible de récupérer ta position."
+    },
+    "scan_modal": {
+      "title": "Scanner un article",
+      "close_label": "Fermer",
+      "permission_text": "Accès à la caméra requis. Active-le dans les réglages.",
+      "no_list_title": "Tu n'as pas de liste active",
+      "no_list_hint": "Crée une liste pour utiliser le scan.",
+      "hint": "Positionne le code-barres dans le cadre",
+      "checked_title": "✅ Article coché",
+      "already_checked_title": "⚠️ Déjà coché",
+      "not_in_list_known": "Ajouter \"{{name}}\" à la liste ?",
+      "not_in_list_unknown": "❓ Produit inconnu",
+      "error_title": "❌ Erreur"
+    },
+    "add_modal": {
+      "title": "Ajouter un article",
+      "close_label": "Fermer",
+      "ean_label": "Code-barres (EAN)",
+      "ean_placeholder": "ex : 3428270000019",
+      "quantity_label": "Quantité",
+      "add_button": "Ajouter",
+      "cancel_button": "Annuler",
+      "no_list_title": "Tu n'as pas de liste active",
+      "no_list_hint": "Crée une liste pour ajouter des articles.",
+      "error_invalid_ean": "Code-barres invalide (8 ou 13 chiffres)",
+      "error_add_failed": "Impossible d'ajouter : produit introuvable ou déjà présent",
+      "success_title": "✅ Article ajouté"
+    }
+  },
+  "scan": {
+    "title": "Scan",
+    "mode": {
+      "receipt": "🧾 Ticket de caisse",
+      "label": "🏷️ Étiquette"
+    },
+    "status": {
+      "matched_barcode": "Reconnu (code-barre)",
+      "matched_knowledge": "Reconnu (mémoire OCR)",
+      "matched_fuzzy_strict": "Reconnu",
+      "matched_manual_admin": "Validé manuellement",
+      "matched_pending_consensus": "En attente de validation",
+      "unresolved": "À confirmer",
+      "rejected": "Rejeté",
+      "pending": "En cours…"
+    },
+    "consensus_state": {
+      "verified": "Confirmé",
+      "unverified": "Contesté",
+      "controverse": "En débat",
+      "pending": "En attente",
+      "unresolved": "Non résolu",
+      "tooltip": "Statut de validation par la communauté"
+    },
+    "rejected_reason": {
+      "no_fuzzy_candidate": "Aucun produit similaire trouvé",
+      "fuzzy_below_threshold": "Correspondance trop faible",
+      "fuzzy_below_threshold_score": "Correspondance trop faible ({{score}})",
+      "barcode_unknown_in_db": "Code-barres inconnu de la base",
+      "parsing_issue": "Données du ticket incomplètes",
+      "no_qty": "Quantité manquante sur le ticket",
+      "no_price": "Prix manquant sur le ticket",
+      "ocr_garbage": "Texte illisible sur le ticket",
+      "duplicate_receipt": "Ticket déjà scanné",
+      "default": "Non identifié"
+    },
+    "history": {
+      "label": "Historique produits scannés",
+      "see_all": "Voir tout →",
+      "fallback_name": "(sans nom)",
+      "pending_chip": "Scanner le ticket →",
+      "pending_a11y": "Scanner le ticket de ce magasin",
+      "title": "Historique",
+      "back": "Retour",
+      "empty_title": "Aucun scan pour l'instant",
+      "empty_hint": "Scanne ton premier ticket ou une étiquette pour démarrer.",
+      "loading": "Chargement…",
+      "error_title": "Impossible de charger l'historique",
+      "error_retry": "Réessayer",
+      "receipt": {
+        "articles_count": "{{count}} articles",
+        "articles_summary_recognized": "{{count}} reconnus",
+        "articles_summary_todo": "{{count}} à compléter",
+        "rescan_button": "Rescanner",
+        "unknown_store": "Magasin inconnu",
+        "store_pending_validation": "Magasin en attente de validation"
+      },
+      "label_group": {
+        "products_count": "{{count}} produits pris en compte"
+      },
+      "confirm_store": {
+        "modal_title": "Magasin inconnu de nos services",
+        "modal_body_intro": "Voici ce que nous avons lu sur votre ticket :",
+        "modal_body_question": "Ce magasin n'est pas dans notre base. Confirmez-vous que ces informations sont correctes ?",
+        "btn_confirm": "Confirmer",
+        "btn_rescan": "Re-scanner",
+        "edit_store_a11y": "Confirmer le magasin",
+        "error_insufficient_data": "Données du ticket insuffisantes — re-scannez",
+        "error_already_resolved": "Ce ticket a déjà été traité",
+        "error_candidate_not_found": "Aucune information magasin lisible sur ce ticket",
+        "error_generic": "Une erreur est survenue. Réessayez.",
+        "success_pending": "Magasin enregistré, en attente de validation"
+      },
+      "item": {
+        "article_to_identify": "Article à identifier",
+        "subtitle_ocr_brut": "OCR: {{text}}",
+        "subtitle_match_uncertain": "Match incertain — vérifier",
+        "subtitle_name_not_recognized": "Nom non reconnu dans la base",
+        "subtitle_unmatched": "Non reconnu — scanne le code-barre",
+        "subtitle_no_scan_name": "On sait qu'il y avait un produit ici",
+        "subtitle_pending": "Traitement en cours…",
+        "quantity_suffix": "×{{n}}"
+      },
+      "relative_time": {
+        "seconds": "à l'instant",
+        "minutes": "il y a {{n}} min",
+        "hours": "il y a {{n}}h",
+        "days": "il y a {{n}}j",
+        "weeks": "il y a {{n}} sem."
+      },
+      "barcode_modal": {
+        "title": "Scanne le code-barre",
+        "hint": "Positionne le code-barres du produit dans le cadre",
+        "close_label": "Fermer",
+        "permission_text": "Accès à la caméra requis. Active-le dans les réglages.",
+        "success": "✅ Produit lié",
+        "error_mismatch": "⚠️ Ce code-barre ne correspond pas au ticket",
+        "error_already_resolved": "Déjà résolu",
+        "error_not_found": "❓ Produit inconnu — nous l'ajouterons bientôt",
+        "error_generic": "❌ Erreur, réessaie"
+      }
+    },
+    "send": "Envoyer →",
+    "queued_toast": "Scan envoyé, on l'analyse en arrière-plan",
+    "queued_empty_toast": "Rien à envoyer",
+    "preview": {
+      "title": "Vérifie ton ticket",
+      "subtitle": "Lisible ? Tout le ticket est dans le cadre ?",
+      "retake": "Reprendre",
+      "send": "Envoyer →"
+    },
+    "history_status": {
+      "uploading": "Envoi en cours…",
+      "processing": "Analyse en cours…",
+      "error": "Échec — réessaye",
+      "unknown_store": "Magasin à confirmer"
+    },
+    "permission_required": "Permission caméra requise",
+    "permission_allow": "Autoriser",
+    "geo_banner": "Active la géoloc pour scanner des étiquettes",
+    "geo_required_title": "Géolocalisation requise",
+    "geo_required_body": "Active la géoloc pour scanner des étiquettes — le magasin est détecté à partir de ta position.",
+    "unknown_store_modal": {
+      "title": "Magasin inconnu",
+      "body": "Ce magasin n'est pas encore dans nos services. Scanne un ticket de caisse de ce magasin pour valider tes prix et gagner les CAB associés.",
+      "later": "Plus tard",
+      "scan_receipt": "Scanner un ticket"
+    }
+  },
+  "completer": {
+    "empty": {
+      "title": "Tout est complet pour le moment",
+      "body": "Reviens plus tard, de nouveaux produits arrivent tous les jours.",
+      "back": "Retour"
+    },
+    "exhausted": {
+      "title": "Tu as tout vu !",
+      "body": "Reviens plus tard pour de nouvelles tâches.",
+      "back": "Retour"
+    },
+    "error": {
+      "title": "Connexion perdue",
+      "body": "Vérifie ta connexion internet puis réessaie.",
+      "retry": "Réessayer",
+      "back": "Retour"
+    },
+    "errors": {
+      "contribution_daily_cap_reached": "Tu as atteint le maximum de contributions pour aujourd'hui. Reviens demain !"
+    },
+    "success": {
+      "heading": "Merci pour ta contribution !",
+      "next": "Compléter un autre",
+      "done": "Retour au tableau de bord"
+    }
+  },
+  "produit": {
+    "title": "Détail produit",
+    "page_title": "Fiche produit",
+    "consensus_label": "MEILLEUR PRIX",
+    "consensus_sub": {
+      "one_store": "1 magasin · {{km}} km autour",
+      "many_stores": "{{count}} magasins · {{km}} km autour",
+      "one_store_no_radius": "1 magasin à proximité",
+      "many_stores_no_radius": "{{count}} magasins à proximité",
+      "no_stores": "Aucun prix disponible",
+      "location_denied": "Active la géoloc pour voir les prix"
+    },
+    "tabs": {
+      "prices": "Prix par magasin",
+      "prices_count": "Prix · {{count}}",
+      "info": "Infos"
+    },
+    "back": "Retour",
+    "favorite_a11y": "Mettre en favoris",
+    "share_a11y": "Partager",
+    "share_message": "Découvre {{name}} sur Ratis",
+    "price_row": {
+      "best_label": "MEILLEUR",
+      "delta_format": "+{{percent}}%"
+    },
+    "info_table": {
+      "section_label": "Caractéristiques",
+      "quantity": "Quantité",
+      "brand": "Marque",
+      "origin": "Origine",
+      "weight": "Poids net",
+      "conservation": "Conservation",
+      "value_unknown": "—"
+    },
+    "info_placeholder": "Bientôt disponible",
+    "add_cta": "Ajouter à ma liste",
+    "add_cta_a11y": "Ajouter à ma liste",
+    "added_toast": "Ajouté à ta liste",
+    "empty_no_prices": "Aucun prix à proximité",
+    "empty_location_denied": "Active la géoloc pour voir les prix",
+    "empty_no_ean": "Aucun produit sélectionné",
+    "empty_no_ean_hint": "Scanne un code-barres ou cherche par nom pour voir la fiche produit",
+    "search_title": "Chercher un produit",
+    "search_hint": "Tape au moins 2 caractères pour voir les résultats",
+    "search_placeholder": "ex : Lait, Coca, Nutella…",
+    "search_no_results": "Aucun produit trouvé",
+    "error_not_found": "Produit introuvable"
+  },
+  "profil": {
+    "title": "Profil",
+    "page_title": "Profil",
+    "handle_level": "{{handle}} · Niveau {{level}}",
+    "level_badge_format": "★ Niv. {{n}}",
+    "fallback_handle": "@ratis",
+    "support_id": {
+      "title": "Mon identifiant support",
+      "description": "Communique cet identifiant pour toute demande au support.",
+      "copy": "Copier",
+      "copied": "Copié !",
+      "copy_a11y_hint": "Copie ton identifiant support dans le presse-papier",
+      "value_a11y": "Identifiant support : {{id}}"
+    },
+    "stats": {
+      "cab": "Cab",
+      "scans": "Scans",
+      "savings": "Économisé",
+      "cab_label": "CAB",
+      "scans_label": "SCANS",
+      "savings_label": "ÉCONOMIES"
+    },
+    "menu_groups": {
+      "rewards": "Récompenses",
+      "account": "Compte",
+      "rewards_label": "RÉCOMPENSES",
+      "account_label": "COMPTE",
+      "session_label": "SESSION"
+    },
+    "items": {
+      "shop": "Boutique",
+      "shop_sub": "Échanger tes CAB",
+      "achievements": "Succès",
+      "achievements_sub": "{{unlocked}} / {{total}} débloqués",
+      "referral": "Parrainage",
+      "referral_sub": "Invite un pote, +500 CAB",
+      "my_info": "Mes infos",
+      "notifications": "Notifications",
+      "logout": "Déconnexion"
+    },
+    "menu_items": {
+      "shop": {
+        "title": "Boutique",
+        "subtitle": "Cartes cadeaux · bonus"
+      },
+      "achievements": {
+        "title": "Succès",
+        "subtitle_format": "{{unlocked}} / {{total}} débloqués"
+      },
+      "referral": {
+        "title": "Parrainage",
+        "subtitle": "Invite un ami · +500 cab"
+      },
+      "my_info": {
+        "title": "Mes informations"
+      },
+      "notifications": {
+        "title": "Notifications"
+      },
+      "logout": {
+        "title": "Se déconnecter",
+        "subtitle": "Tu seras redirigé vers l'écran de connexion"
+      }
+    },
+    "referral_screen": {
+      "title": "Parrainage",
+      "back": "Retour",
+      "loading": "Chargement…",
+      "error_title": "Impossible de charger le parrainage",
+      "error_retry": "Réessayer",
+      "section_code": "Ton code",
+      "code_hint": "Partage ce code à tes amis. Tu gagnes 500 CAB (mensuel) ou 750 CAB (annuel) quand ils s'abonnent.",
+      "copy_button": "Copier",
+      "copied_toast": "Code copié",
+      "share_button": "Partager",
+      "share_message": "Rejoins-moi sur Ratis avec mon code {{code}} — on gagne chacun des CAB !",
+      "section_stats": "Tes statistiques",
+      "stats_signups": "Inscrits",
+      "stats_subscribers": "Abonnés",
+      "stats_cab_earned": "CAB gagnés",
+      "section_history": "Tes parrainages",
+      "history_empty": "Aucun parrainage pour l'instant. Partage ton code !",
+      "status_pending": "Inscrit",
+      "status_rewarded_monthly": "Abonné mensuel",
+      "status_rewarded_annual": "Abonné annuel",
+      "unnamed_user": "Nouveau filleul"
+    },
+    "my_info": {
+      "title": "Mes infos",
+      "back": "Retour",
+      "section_profile": "Profil",
+      "email_label": "Email",
+      "email_hint": "L'email ne peut pas être modifié (associé à ton compte).",
+      "display_name_label": "Nom d'affichage",
+      "display_name_placeholder": "Comment doit-on t'appeler ?",
+      "display_name_hint": "Entre 1 et 30 caractères.",
+      "timezone_label": "Fuseau horaire",
+      "timezone_hint": "Utilisé pour les horaires des missions et leaderboards.",
+      "save_button": "Enregistrer",
+      "saving": "Enregistrement…",
+      "saved": "✅ Profil mis à jour",
+      "error_invalid_payload": "Les informations saisies ne sont pas valides.",
+      "error_rate_limited": "Trop de tentatives. Réessaie dans une minute.",
+      "error_generic": "Une erreur est survenue, réessaie plus tard.",
+      "linked_accounts": {
+        "section_title": "Comptes liés",
+        "section_hint": "Connecte-toi avec Apple ou Google. Tu peux lier les deux.",
+        "provider_google": "Google",
+        "provider_apple": "Apple",
+        "linked_badge": "Lié",
+        "link_button": "Lier {{provider}}",
+        "unlink_button": "Délier",
+        "linked_success": "✅ Compte {{provider}} lié",
+        "unlinked_success": "✅ Compte {{provider}} délié",
+        "error_already_linked": "Ce compte est déjà lié à un autre utilisateur Ratis.",
+        "error_cannot_unlink_last": "Impossible de délier ton dernier moyen de connexion.",
+        "error_generic": "Une erreur est survenue, réessaie plus tard.",
+        "confirm_unlink": "Délier ce compte ?"
+      }
+    }
+  },
+  "auth": {
+    "tagline": "Suivez vos prix, scannez vos tickets, gagnez des Ratis.",
+    "continue_with_apple": "Continuer avec Apple",
+    "continue_with_google": "Continuer avec Google",
+    "legal_intro": "En continuant, vous acceptez nos",
+    "legal_cgu": "Conditions d'utilisation",
+    "legal_and": "et notre",
+    "legal_privacy": "Politique de confidentialité",
+    "session_expired": "Votre session a expiré, reconnectez-vous.",
+    "invalid_credentials": "Identifiants invalides",
+    "google_unavailable": "Connexion Google indisponible, réessayez",
+    "apple_unavailable": "Connexion Apple indisponible, réessayez",
+    "google_email_required": "Google doit partager votre email pour continuer",
+    "apple_reconsent_required": "Réautorisez Ratis dans les réglages Apple puis réessayez",
+    "configuration_error": "Configuration du service incorrecte, contactez le support",
+    "unknown_error": "Une erreur inattendue s'est produite"
+  },
+  "shop": {
+    "title": "Boutique",
+    "back": "Retour",
+    "balance_label": "Solde CAB",
+    "season_subtitle": "Cette saison :",
+    "from_cab": "à partir de {{cab}} CAB",
+    "my_gift_cards": "Mes cartes cadeaux",
+    "catalog_error": "Impossible de charger la boutique. Réessaie.",
+    "empty": "Aucune marque disponible cette saison. Reviens bientôt !",
+    "retry": "Réessayer",
+    "brand_not_found": "Cette marque n'existe pas ou n'est plus active.",
+    "denomination_label": "Carte {{eur}} €",
+    "denomination_cost": "{{cab}} CAB",
+    "caps_daily": "Tu as fait {{used}}/{{cap}} aujourd'hui",
+    "caps_weekly": "Tu as fait {{used}}/{{cap}} cette semaine",
+    "caps_mvp_note": "Plafonds mis à jour en temps réel.",
+    "brand_stats_line": "Tu as déjà acheté {{count}} carte(s) chez {{brand}} pour un total de {{total}}.",
+    "confirm_eyebrow": "Carte cadeau",
+    "confirm_title": "Confirmer l'achat ?",
+    "confirm_card_line": "Carte cadeau {{brand}} {{eur}} €",
+    "confirm_cost": "Coût",
+    "confirm_after": "Solde après achat",
+    "confirm_submit": "Confirmer",
+    "confirm_cancel": "Annuler",
+    "success_title": "Commande envoyée",
+    "success_body": "Ta carte arrive d'ici quelques secondes. Tu la retrouveras dans Mes cartes cadeaux.",
+    "success_ok": "OK",
+    "error_title": "Achat impossible",
+    "errors": {
+      "insufficient_cab_balance": "Solde CAB insuffisant.",
+      "daily_redeem_cap_reached": "Tu as atteint le maximum quotidien (100 €/jour).",
+      "weekly_redeem_cap_reached": "Tu as atteint le maximum hebdomadaire (300 €/sem).",
+      "annual_gift_card_cap_reached": "Tu as atteint le maximum annuel (1199 €/an).",
+      "brand_not_available": "Cette marque n'est plus disponible.",
+      "invalid_denomination": "Cette dénomination n'est pas disponible.",
+      "duplicate_order_recent": "Achat similaire récent — réessaie dans 1 minute.",
+      "generic": "Une erreur est survenue, réessaie plus tard."
+    }
+  },
+  "errors": {
+    "offline": "Pas de connexion internet",
+    "server_timeout": "Le service met du temps à répondre, réessayez",
+    "provider_unavailable": "Service indisponible, réessayez plus tard",
+    "registrations_closed": "Les inscriptions sont temporairement fermées, réessayez plus tard",
+    "internal": "Une erreur est survenue, réessayez",
+    "retry": "Réessayer"
+  },
+  "crash": {
+    "title": "Oups",
+    "body": "Une erreur inattendue s'est produite.",
+    "reload": "Recharger l'application"
+  },
+  "common": {
+    "retry": "Réessayer",
+    "cancel": "Annuler",
+    "location_permission": {
+      "title": "Active ta localisation",
+      "cta": "Activer",
+      "dismiss": "Ignorer",
+      "description": {
+        "scan": "Nécessaire pour associer tes scans d'étiquettes au bon magasin.",
+        "liste": "Active la géoloc pour optimiser ton trajet shopping.",
+        "produit": "Active la géoloc pour voir les prix des magasins autour de toi."
+      }
+    }
+  },
+  "gamification": {
+    "mission": {
+      "cab_reward_a11y": "Récompense : {{count}} CAB"
+    },
+    "buffer": {
+      "cta": "Buffer",
+      "cta_a11y": "Étendre cette mission d'un jour pour plus de récompenses",
+      "badge": "Buffer × {{count}}",
+      "modal_eyebrow": "Mission boost",
+      "modal_title": "Activer un Buffer ?",
+      "modal_description": "Cette action étend ta mission d'1 jour, double l'objectif et ajoute {{cab}} CAB. Tu peux cumuler jusqu'à 3 Buffers (4 jours max). Niveau {{level}} après confirmation.",
+      "modal_confirm": "Confirmer",
+      "modal_cancel": "Annuler",
+      "errors": {
+        "weekly_not_bufferable": "Les missions hebdomadaires ne sont pas bufferables.",
+        "buffer_cap_reached": "Tu as atteint la limite de 3 Buffers.",
+        "burst_locked": "Tu as déjà déclenché un Burst — Buffer indisponible.",
+        "mission_not_pending": "Cette mission n'est plus active.",
+        "mission_not_found": "Mission introuvable.",
+        "generic": "Impossible d'appliquer le Buffer, réessaie."
+      }
+    },
+    "burst": {
+      "overlay_title": "Burst niv. {{level}}",
+      "claim_cta": "Claim Burst (+{{count}})",
+      "claim_a11y": "Réclamer les paliers Burst débloqués",
+      "errors": {
+        "no_burst_palier_unlocked": "Aucun palier Burst débloqué.",
+        "mission_not_found": "Mission introuvable.",
+        "generic": "Impossible de réclamer le Burst, réessaie."
+      }
+    },
+    "claim": {
+      "errors": {
+        "no_portion_available_now": "Aucune portion disponible pour l'instant.",
+        "already_claimed": "Tu as déjà tout récolté sur cette mission.",
+        "mission_expired": "Cette mission est expirée.",
+        "mission_not_found": "Mission introuvable.",
+        "generic": "Impossible de réclamer la mission, réessaie."
+      }
+    },
+    "leaderboard": {
+      "title": "Leaderboard Burst",
+      "tab_monthly": "Mois en cours",
+      "tab_alltime": "All-time",
+      "your_rank": "Ton rang : #{{rank}}",
+      "your_rank_unranked": "Pas encore classé",
+      "your_max_xp": "Meilleur score : {{xp}} XP",
+      "header_player": "Joueur",
+      "header_xp": "XP",
+      "header_burst": "Burst",
+      "empty": "Aucun record pour cette période.",
+      "loading": "Chargement du leaderboard…",
+      "error_title": "Impossible de charger le leaderboard",
+      "back": "Retour",
+      "menu_label": "Leaderboard",
+      "menu_subtitle": "Burst — mensuel · all-time"
+    }
+  }
+}

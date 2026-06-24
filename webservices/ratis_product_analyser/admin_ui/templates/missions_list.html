@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Missions{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-2">Missions — catalogue</h1>
+<p class="mb-6 text-slate-600 text-sm">
+  Templates de missions (daily / weekly). Le batch quotidien instancie ces
+  rows en <code>user_missions</code> pour chaque utilisateur — éditer ici
+  modifie le pool d'avenir, pas les missions déjà en cours.
+</p>
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<section class="mb-8">
+  <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+    <span>Templates</span>
+    <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded">{{ templates | length }}</span>
+  </h2>
+  {% if templates %}
+  <div class="overflow-x-auto bg-white shadow rounded">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100 text-slate-700">
+        <tr>
+          <th class="text-left px-3 py-2">Action</th>
+          <th class="text-left px-3 py-2">Fréquence</th>
+          <th class="text-left px-3 py-2">Difficulté</th>
+          <th class="text-right px-3 py-2">Target</th>
+          <th class="text-right px-3 py-2">CAB</th>
+          <th class="text-center px-3 py-2">Active</th>
+          <th class="text-center px-3 py-2">Boostable</th>
+          <th class="px-3 py-2"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in templates %}
+        <tr class="border-t border-slate-200 hover:bg-slate-50">
+          <td class="px-3 py-2 font-mono">{{ m.action_type }}</td>
+          <td class="px-3 py-2">{{ m.frequency }}</td>
+          <td class="px-3 py-2">{{ m.difficulty }}</td>
+          <td class="px-3 py-2 text-right">{{ m.target_count }}</td>
+          <td class="px-3 py-2 text-right">{{ m.cab_reward }}</td>
+          <td class="px-3 py-2 text-center">
+            {% if m.is_active %}<span class="text-emerald-700">✓</span>{% else %}<span class="text-slate-400">—</span>{% endif %}
+          </td>
+          <td class="px-3 py-2 text-center">
+            {% if m.is_boostable %}<span class="text-emerald-700">✓</span>{% else %}<span class="text-slate-400">—</span>{% endif %}
+          </td>
+          <td class="px-3 py-2 text-right">
+            <a href="/admin/ui/missions/{{ m.id }}"
+               class="text-slate-600 hover:underline"
+               data-testid="link-mission-{{ m.id }}">Éditer →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500 italic">Aucun template enregistré.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2 class="text-lg font-semibold mb-3">Nouveau template</h2>
+  <form method="post" action="/admin/ui/missions" class="bg-white shadow rounded p-4 space-y-3" data-testid="mission-create-form">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="action_type">Action</label>
+        <select id="action_type" name="action_type" required
+                class="w-full text-sm border border-slate-300 rounded p-2">
+          <option value="receipt_scan">receipt_scan</option>
+          <option value="label_scan">label_scan</option>
+          <option value="barcode_scan">barcode_scan</option>
+          <option value="price_compared">price_compared</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="frequency">Fréquence</label>
+        <select id="frequency" name="frequency" required
+                class="w-full text-sm border border-slate-300 rounded p-2">
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="difficulty">Difficulté</label>
+        <select id="difficulty" name="difficulty" required
+                class="w-full text-sm border border-slate-300 rounded p-2">
+          <option value="easy">easy</option>
+          <option value="medium">medium</option>
+          <option value="hard">hard</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="target_count">Target count</label>
+        <input id="target_count" name="target_count" type="number" min="1" max="10000" required
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="cab_reward">CAB reward</label>
+        <input id="cab_reward" name="cab_reward" type="number" min="0" max="1000000" required
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+    </div>
+    <div class="flex items-center gap-6">
+      <label class="inline-flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_active" checked />
+        <span>Active</span>
+      </label>
+      <label class="inline-flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_boostable" checked />
+        <span>Boostable</span>
+      </label>
+    </div>
+    <div>
+      <button type="submit"
+              class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700"
+              data-testid="mission-create-button">
+        Créer le template
+      </button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,100 @@
+# ============================================================
+# Caddyfile — reverse proxy + TLS Let's Encrypt automatique
+# ============================================================
+# Utilisé UNIQUEMENT quand on self-host (Mac mini / VPS Hetzner).
+# Railway gère son propre TLS à l'edge — ce fichier n'y est pas utilisé.
+#
+# Usage (Mac mini) :
+#   docker compose -f docker-compose.prod.yml --profile self-hosted up -d
+#
+# Prérequis DNS (Cloudflare) :
+#   api.ratis.app        → A/AAAA/CNAME vers Mac mini (ou tunnel)
+#   products.ratis.app   → idem
+#   lists.ratis.app      → idem
+#   rewards.ratis.app    → idem
+#   notifier.ratis.app   → idem
+#   osrm.ratis.app       → idem (si tu exposes OSRM, sinon garde-le en interne)
+#
+# ⚠️ Désactiver le proxy Cloudflare (nuage orange → gris) pendant le premier
+# challenge ACME, sinon Let's Encrypt échoue. Tu peux réactiver après.
+# ============================================================
+
+api.ratis.app {
+	reverse_proxy auth:8001
+	# Sécurité de base — à durcir plus tard avec une politique CSP complète
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/api.log
+		format json
+	}
+}
+
+products.ratis.app {
+	reverse_proxy product_analyser:8003
+	# Uploads d'images tickets peuvent être gros → augmenter la limite.
+	request_body {
+		max_size 20MB
+	}
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/products.log
+		format json
+	}
+}
+
+lists.ratis.app {
+	reverse_proxy list_optimiser:8002
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/lists.log
+		format json
+	}
+}
+
+rewards.ratis.app {
+	reverse_proxy rewards:8004
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/rewards.log
+		format json
+	}
+}
+
+notifier.ratis.app {
+	reverse_proxy notifier:8005
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/notifier.log
+		format json
+	}
+}
+
+# OSRM — optionnel de l'exposer publiquement. Par défaut il reste en réseau
+# Docker interne et n'est appelé que par list_optimiser. Décommenter si tu
+# veux le debug depuis l'extérieur.
+# osrm.ratis.app {
+# 	reverse_proxy osrm:5000
+# }

@@ -1,0 +1,27 @@
+name        = "support_link_scan_to_user"
+purpose     = "Lie un scan orphelin a un user (regime non_money, facing)."
+facing      = true
+direction   = "link"
+money_tier  = "non_money"
+
+[[args]]
+name      = "p_scan_id"
+type      = "uuid"
+required  = true
+
+[[args]]
+name      = "p_user_id"
+type      = "uuid"
+required  = true
+
+[[affects]]
+table   = "scans"
+op      = "update"
+rows    = 1
+columns = ["user_id"]
+
+# HSP3 — trust level + allowed callers (cf docs/superpowers/specs/2026-05-20-db-pipeline-hsp3-human-gate-design.md §M5).
+# manual = gate humain systématique. Graduation = proposition séparée mode="graduation".
+trust_level_initial = "manual"
+# HSP4 enforcera l'identité du caller ; en HSP3 on initialise au caller de référence.
+allowed_callers = ["claude-code-main"]

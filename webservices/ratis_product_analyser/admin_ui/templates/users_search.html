@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Recherche utilisateur{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Recherche utilisateur</h1>
+
+<form method="post" action="/admin/ui/users/search"
+      class="bg-white shadow rounded p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+  <div class="md:col-span-2">
+    <label class="block text-xs font-semibold mb-1" for="query">UUID, RTS-XXXXXX, ou email partiel</label>
+    <input type="text" id="query" name="query" value="{{ query or '' }}"
+           autofocus
+           class="w-full border rounded px-2 py-1 font-mono text-xs"
+           placeholder="ex: 5e8a... · RTS-AB12CD · alice@" />
+    <p class="mt-1 text-xs text-slate-500">
+      Le format est détecté automatiquement (UUID = lookup direct, RTS-XXXXXX = exact match,
+      sinon recherche partielle sur l'email).
+    </p>
+  </div>
+  <div class="md:col-span-1 flex items-end">
+    <button type="submit"
+            class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">
+      Rechercher
+    </button>
+  </div>
+  {% if error %}
+    <div class="md:col-span-3 text-sm text-red-700" data-testid="search-error">{{ error }}</div>
+  {% endif %}
+</form>
+
+{% if results %}
+  <p class="text-sm text-slate-600 mb-2">
+    {{ results|length }} utilisateur{{ 's' if results|length > 1 else '' }} trouvé{{ 's' if results|length > 1 else '' }}
+    {% if truncated %}<span class="text-amber-700">(affichage limité à 50 — affinez la recherche)</span>{% endif %}
+  </p>
+  <table class="w-full bg-white shadow rounded text-sm">
+    <thead class="bg-slate-100 text-left">
+      <tr>
+        <th class="px-3 py-2">ID</th>
+        <th class="px-3 py-2">Email</th>
+        <th class="px-3 py-2">Support ID</th>
+        <th class="px-3 py-2">Type de compte</th>
+        <th class="px-3 py-2">Créé</th>
+        <th class="px-3 py-2">Supprimé</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in results %}
+      <tr class="border-t" data-testid="user-row-{{ u.id }}">
+        <td class="px-3 py-2 font-mono text-xs">
+          <a href="/admin/ui/users/{{ u.id }}" class="text-blue-700 hover:underline">{{ u.id[:8] }}…</a>
+        </td>
+        <td class="px-3 py-2">{{ u.email }}</td>
+        <td class="px-3 py-2 font-mono text-xs">{{ u.support_id or '—' }}</td>
+        <td class="px-3 py-2">{{ u.account_type }}</td>
+        <td class="px-3 py-2 text-xs">{{ u.created_at }}</td>
+        <td class="px-3 py-2">{{ 'oui' if u.is_deleted else 'non' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

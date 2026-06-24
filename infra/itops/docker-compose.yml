@@ -1,0 +1,318 @@
+# =============================================================================
+# infra/itops — Phase A self-hosted ops stack (Mac mini host)
+# -----------------------------------------------------------------------------
+# Services :
+#   - healthchecks : monitoring batch jobs (cron pings success/fail)
+#   - watchtower  : auto-update opt-in (label-scoped) of running containers
+#
+# This stack runs on the Mac mini dev/runner host. It is independent from the
+# main ratis dev stack (`/docker-compose.yml`) and the GH Actions runners
+# (`/runner/docker-compose.yml`). Boot order does not matter.
+#
+# Usage :
+#   cp .env.example .env && $EDITOR .env
+#   docker compose up -d
+#   docker compose ps
+#   curl -fsS http://localhost:${HEALTHCHECKS_PORT:-8000}/api/v1/
+#
+# See ARCH_itops.md (repo root) for full design + decisions.
+# =============================================================================
+
+services:
+  healthchecks:
+    image: healthchecks/healthchecks:latest
+    container_name: ratis-itops-healthchecks
+    restart: unless-stopped
+    environment:
+      # SQLite is built-in to the image; default DB path inside the volume.
+      # Phase A: SQLite suffices (monitoring stack, low write volume,
+      # full-rebuild acceptable in Phase B if we move to PG). See ARCH_itops DA-38.
+      DB: sqlite
+      DB_NAME: /data/hc.sqlite
+      SITE_ROOT: ${HEALTHCHECKS_SITE_ROOT:-http://localhost:8000}
+      SITE_NAME: ${HEALTHCHECKS_SITE_NAME:-Ratis Healthchecks}
+      DEFAULT_FROM_EMAIL: ${HEALTHCHECKS_DEFAULT_FROM_EMAIL:-healthchecks@ratis.app}
+      SUPERUSER_EMAIL: ${HEALTHCHECKS_SUPERUSER_EMAIL}
+      SUPERUSER_PASSWORD: ${HEALTHCHECKS_SUPERUSER_PASSWORD}
+      # SMTP — leave blank in Phase A; configure in Phase B once channel chosen.
+      EMAIL_HOST: ${HEALTHCHECKS_EMAIL_HOST:-}
+      # NOTE: EMAIL_PORT must be a valid integer — Healthchecks `envint()`
+      # crashes on empty strings. We default to the SMTP submission port 587;
+      # this is inert as long as EMAIL_HOST is empty (no mail will be sent).
+      EMAIL_PORT: ${HEALTHCHECKS_EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${HEALTHCHECKS_EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${HEALTHCHECKS_EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${HEALTHCHECKS_EMAIL_USE_TLS:-False}
+      ALLOWED_HOSTS: ${HEALTHCHECKS_ALLOWED_HOSTS:-*}
+      SECRET_KEY: ${HEALTHCHECKS_SECRET_KEY}
+      DEBUG: "False"
+      # Tell Healthchecks the public URL it is reachable from (for ping URLs
+      # generated in the UI). Override when behind Tailscale or a public proxy.
+      PING_URL: ${HEALTHCHECKS_PING_URL:-http://localhost:8000/ping}
+    ports:
+      - "${HEALTHCHECKS_PORT:-8000}:8000"
+    volumes:
+      - healthchecks_data:/data
+    healthcheck:
+      # /accounts/login/ is the canonical unauthenticated UI page; always 200
+      # when the Django app is alive. /api/v1/ does not exist on `latest`
+      # (only /api/v3/ which requires auth — would always 401).
+      # NOTE: the healthchecks image ships neither curl nor wget — use the
+      # bundled Python interpreter + stdlib (urllib) instead.
+      test:
+        - "CMD-SHELL"
+        - "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/accounts/login/', timeout=4).status==200 else 1)\""
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - itops_net
+    # We label THIS service for Watchtower opt-in too: the monitoring stack
+    # itself is a good candidate for auto-update (it does not host data we
+    # cannot reconstruct — only HC config + ping history).
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: ratis-itops-watchtower
+    restart: unless-stopped
+    environment:
+      # Schedule (6-field cron, seconds-precision). Default: 04:00 every day.
+      WATCHTOWER_SCHEDULE: ${WATCHTOWER_SCHEDULE:-0 0 4 * * *}
+      # Remove old images after pulling new ones — keeps disk lean.
+      WATCHTOWER_CLEANUP: "true"
+      # Restart containers that are currently in `restarting` state too.
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      # CRITICAL — opt-in only: Watchtower will ONLY monitor containers with
+      # the label `com.centurylinklabs.watchtower.enable=true`. Other compose
+      # stacks on this host (runners, ratis dev stack) are untouched.
+      # See ARCH_itops DA-39.
+      WATCHTOWER_LABEL_ENABLE: "true"
+      # No notifications in Phase A — to be configured in Phase B (Slack/Discord).
+      # WATCHTOWER_NOTIFICATIONS: ""
+      # WATCHTOWER_NOTIFICATION_URL: ""
+      # Pin the Docker daemon API version Watchtower talks to. Recent macOS
+      # Docker daemons (Desktop / Colima) advertise min API 1.40; without
+      # this pin Watchtower's bundled SDK negotiates 1.25 and the daemon
+      # rejects every call ("client version too old"). 1.40 is the safe
+      # minimum supported by both sides.
+      DOCKER_API_VERSION: "1.40"
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      # Read-only socket would be nicer but Watchtower needs write to restart
+      # containers. Standard pattern.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - itops_net
+    # Watchtower can update itself — recommended.
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # ===========================================================================
+  # === Phase B === Observabilité : Uptime Kuma + Loki + Promtail
+  # ---------------------------------------------------------------------------
+  # B.1 — Uptime Kuma : HTTP/TCP probes + dashboard uptime + alerting multi-channel.
+  # B.2 — Loki + Promtail : log aggregation queryable via API REST (Phase C n8n).
+  #
+  # Pas de label Watchtower opt-in sur cette tranche — contrôle manuel des
+  # updates pour services ITOps (DA-42). Bumps via `docker compose pull && up -d`.
+  # ===========================================================================
+
+  uptime-kuma:
+    # Pin major version (DA-42) — pas de :latest pour éviter breaking changes.
+    image: louislam/uptime-kuma:1
+    container_name: ratis-itops-uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "${UPTIME_KUMA_PORT:-3001}:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
+    healthcheck:
+      # L'image embarque un binaire de healthcheck — `extra/healthcheck.js`
+      # via `node` — qui hit l'API interne. Plus fiable que curl/wget qui
+      # peuvent ne pas être présents (Alpine slim variants).
+      # Fallback simple : Node stdlib http GET / sur port 3001.
+      test:
+        - "CMD-SHELL"
+        - "node -e \"require('http').get('http://127.0.0.1:3001/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - itops_net
+
+  loki:
+    # Pin minor version (DA-40) — track 3.3.x updates manually.
+    image: grafana/loki:3.3.0
+    container_name: ratis-itops-loki
+    restart: unless-stopped
+    # Bind explicitement sur 127.0.0.1 — Loki n'est PAS exposé publiquement.
+    # Consommé localement par Promtail (intra-réseau Docker) et par n8n
+    # (Phase C, sur le même host). Tailscale exposera plus tard si besoin.
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    volumes:
+      - loki_data:/loki
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      # /ready renvoie 200 quand Loki a fini son startup (replay WAL etc).
+      # L'image alpine de Loki n'a ni curl ni wget — utilise Loki lui-même
+      # via son binaire `loki` n'expose pas de subcommand probe ;
+      # on fallback sur `wget` qui est présent dans grafana/loki:3.3 (busybox).
+      test:
+        - "CMD-SHELL"
+        - "wget -q -O- http://127.0.0.1:3100/ready 2>/dev/null | grep -q 'ready' || exit 1"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - itops_net
+
+  promtail:
+    # Match Loki major.minor — protocole push-API stable au sein de la même
+    # version mineure.
+    image: grafana/promtail:3.3.0
+    container_name: ratis-itops-promtail
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      # agent-mcp audit log (DA-48) — bind-mount the host XDG state dir
+      # read-only so Promtail can tail `audit.log`. Default targets the
+      # current Mac mini layout ; override `MCP_AUDIT_LOG_DIR` on other
+      # hosts (Linux : `~/.local/state/ratis-agent-mcp`). If the directory
+      # or file does not exist yet (MCP never invoked), Promtail's
+      # `static_configs` job tails gracefully once it appears.
+      - ${MCP_AUDIT_LOG_DIR:-/Users/guillaume/.local/state/ratis-agent-mcp}:/host-mcp-audit:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - itops_net
+
+  # ===========================================================================
+  # === Phase C === n8n self-hosted workflow engine (incident orchestration)
+  # ---------------------------------------------------------------------------
+  # Hosts the Sentry-ingest + GitHub-PR-merged-closer pipelines that converge
+  # incidents from multiple sources into the Notion INCIDENTS DB. Exposed via
+  # Tailscale Funnel (host-level, NOT a Docker service) on https://<host>.<tailnet>.ts.net.
+  # See ARCH_n8n_pipelines.md (repo root) for full design.
+  # ===========================================================================
+
+  n8n:
+    # Pin minor version (matches ITOps convention DA-40 Loki/Promtail).
+    # 1.123.41 = latest 1.x stable as of 2026-05-07 (n8n 2.x exists but
+    # introduces breaking changes — notably "Block access to env in code and
+    # expressions by default" — that conflict with our HMAC verification
+    # design which uses $env.N8N_*_WEBHOOK_SECRET in Code nodes. Migration
+    # to 2.x tracked as V1.5 followup once V0 workflows are stable and we've
+    # designed the credentials-store HMAC pattern.
+    image: n8nio/n8n:1.123.41
+    container_name: ratis-itops-n8n
+    restart: unless-stopped
+    # Bind 127.0.0.1 — Tailscale Funnel daemon on the host routes the public
+    # tailnet URL → localhost:5678, so n8n is NOT directly exposed to the LAN.
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      # n8n needs to know its public URL for webhook URL display + production-mode
+      # CORS hardening. (V0 n'utilise pas OAuth — voir DA-4 dans ARCH_n8n_pipelines.md
+      # qui spécifie n8n credentials store + tokens directs, pas de flow OAuth.)
+      N8N_HOST: ${N8N_HOST}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://${N8N_HOST}/
+      # Encryption for the credentials store (Notion/GitHub/Sentry tokens).
+      # CRITICAL : changing this key invalidates ALL stored credentials. Generate ONCE,
+      # back up via `agent-mcp keychain set n8n-encryption-key` for disaster recovery.
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      # Basic auth on the n8n UI — defense in depth even though Tailscale Funnel
+      # ACL already restricts to your tailnet identity for non-webhook paths.
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      # SQLite default backend — fine for single-host single-user. Phase D
+      # might migrate to Postgres if multi-user editing becomes a need.
+      DB_TYPE: sqlite
+      # Timezone for cron nodes (V0.5 daily digest will rely on this).
+      GENERIC_TIMEZONE: ${TZ:-Europe/Paris}
+      TZ: ${TZ:-Europe/Paris}
+      # Webhook secrets consumed by Code nodes inside workflows (HMAC verification).
+      # Read at workflow execution time via $env.N8N_SENTRY_WEBHOOK_SECRET.
+      N8N_SENTRY_WEBHOOK_SECRET: ${N8N_SENTRY_WEBHOOK_SECRET}
+      N8N_GITHUB_WEBHOOK_SECRET: ${N8N_GITHUB_WEBHOOK_SECRET}
+      # batch-sentinel (Phase 1 monitoring) — secret HMAC consommé par le Code
+      # node `HMAC + Timestamp Verification` du workflow batch-sentinel.json.
+      # Symétrique avec N8N_SENTRY_WEBHOOK_SECRET / N8N_GITHUB_WEBHOOK_SECRET.
+      N8N_BATCH_SENTINEL_WEBHOOK_SECRET: ${N8N_BATCH_SENTINEL_WEBHOOK_SECRET}
+      # Whitelist Node.js built-in modules accessible from Code nodes via require().
+      # n8n 1.x sandboxes Code nodes by default — `require('crypto')` is blocked
+      # without this. We need crypto for HMAC-SHA256 verification of Sentry +
+      # GitHub webhooks. Comma-separated list ; '*' for all (less safe).
+      NODE_FUNCTION_ALLOW_BUILTIN: ${NODE_FUNCTION_ALLOW_BUILTIN:-crypto}
+      # daily-digest workflow (V0.5) — clé API n8n + webhook Discord,
+      # lus via $env dans le workflow daily-digest.
+      N8N_API_KEY: ${N8N_API_KEY}
+      N8N_DISCORD_DIGEST_WEBHOOK_URL: ${N8N_DISCORD_DIGEST_WEBHOOK_URL}
+      # db-write-pipeline (SP4) — secret HMAC consommé par le Code node de vérif.
+      N8N_DB_PIPELINE_WEBHOOK_SECRET: ${N8N_DB_PIPELINE_WEBHOOK_SECRET}
+      # db-write-pipeline revue LLM (SP5) — clé API Anthropic, lue via
+      # $env.ANTHROPIC_API_KEY dans les nœuds HTTP Request de revue.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # db-write-pipeline gate d'approbation humaine (SP6) — URL du service PA
+      # et clé admin partagée pour POST /api/v1/admin/db-approvals.
+      PA_ADMIN_BASE_URL: ${PA_ADMIN_BASE_URL}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      # db-write-pipeline feature-flag d'exécution prod (audit L1). String
+      # 'true' (strict match) = execute autorisé ; absent OU autre = DISABLED.
+      # Lu dans Execute (HSP4 checksum) via $env.DB_PIPELINE_EXECUTE_ENABLED.
+      DB_PIPELINE_EXECUTE_ENABLED: ${DB_PIPELINE_EXECUTE_ENABLED:-false}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      # Mount the workflows-as-JSON read-only so the operator can re-import them
+      # after a fresh deploy without losing the source-of-truth in git.
+      - ./n8n-workflows:/home/node/.n8n/workflows-imports:ro
+      # Mount the quarantine directory for Notion-down fallback (DA-8).
+      # This is the host XDG share dir — Promtail does NOT tail this (it's
+      # markdown payloads, not logs). Operator reviews manually.
+      - ${RATIS_QUARANTINE_DIR}:/quarantine
+    healthcheck:
+      # n8n exposes /healthz returning 200 OK when ready. Use `node` (always
+      # present in this Node-based image) rather than `wget` for future-proof
+      # compatibility with potential alpine-slim n8n variants. Same pattern as
+      # `uptime-kuma` service in this stack.
+      test:
+        - "CMD-SHELL"
+        - "node -e \"require('http').get('http://127.0.0.1:5678/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - itops_net
+    # Pas de label `com.centurylinklabs.watchtower.enable` — aligned with DA-42 :
+    # n8n minor version bumps peuvent break workflow nodes (Code node API,
+    # JSON schema), migrations encryption store, ou changer le format SQLite.
+    # Updates manuels via `docker compose pull n8n && up -d n8n` après lecture
+    # des release notes upstream. Pin `1.71.3` minimise le drift de toute façon.
+
+volumes:
+  healthchecks_data:
+    driver: local
+  uptime_kuma_data:
+    driver: local
+  loki_data:
+    driver: local
+  n8n_data:
+    driver: local
+
+networks:
+  itops_net:
+    driver: bridge
+    name: ratis_itops_net

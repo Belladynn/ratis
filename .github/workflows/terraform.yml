@@ -1,0 +1,126 @@
+name: Terraform (infra/aws)
+
+# IaC gate for infra/aws : ECS Fargate + RDS + ElastiCache behind an ALB, via a
+# reusable modules/service instantiated 5x.
+#
+# DESIGN — this repo is PUBLIC and has NO AWS account wired. Every job in the
+# `validate` gate below runs WITHOUT credentials :
+#   - terraform fmt -check -recursive   (style)
+#   - terraform init -backend=false     (no S3 backend contact -> no creds)
+#   - terraform validate                (static config validity)
+#   - tflint (terraform + aws rulesets) (static lint, no AWS API calls)
+# These four are the ACTIVE PR gate and always run.
+#
+# The deploy showcase (`plan` on PR / `apply` on main) uses GitHub OIDC via
+# aws-actions/configure-aws-credentials with NO static keys (id-token: write).
+# It is GUARDED by `if: vars.AWS_DEPLOY_ROLE_ARN != ''` : with no deploy role
+# configured (the default for this public repo) the job is SKIPPED, so it can
+# never auto-run-and-fail. Wire the `AWS_DEPLOY_ROLE_ARN` repo variable to a
+# real OIDC role to light it up.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/aws/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    paths:
+      - "infra/aws/**"
+      - ".github/workflows/terraform.yml"
+
+# Least privilege at the top level ; jobs that need more (OIDC) opt in locally.
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_WORKING_DIR: infra/aws
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # ACTIVE PR GATE — runs with no AWS credentials. fmt + validate + tflint.
+  # ---------------------------------------------------------------------------
+  validate:
+    name: fmt + validate + tflint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: terraform fmt -check
+        run: terraform -chdir="${TF_WORKING_DIR}" fmt -check -recursive
+
+      - name: terraform init (no backend — no AWS creds needed)
+        run: terraform -chdir="${TF_WORKING_DIR}" init -backend=false -input=false
+
+      - name: terraform validate
+        run: terraform -chdir="${TF_WORKING_DIR}" validate -no-color
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@b480b8fcdaa6f2c577f8e4fa799e89e756bb7c93 # v6.2.2
+        with:
+          tflint_version: v0.63.1
+
+      - name: tflint --init
+        # Installs the terraform + aws rulesets declared in infra/aws/.tflint.hcl.
+        run: tflint --chdir="${TF_WORKING_DIR}" --init
+        env:
+          # Avoids GitHub API rate-limiting when fetching the aws ruleset plugin.
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: tflint
+        run: tflint --chdir="${TF_WORKING_DIR}" --format compact
+
+  # ---------------------------------------------------------------------------
+  # DEPLOY SHOWCASE — OIDC, no static keys. GUARDED : skipped unless the repo
+  # variable AWS_DEPLOY_ROLE_ARN is set. plan on PR, apply on push to main.
+  # ---------------------------------------------------------------------------
+  plan-apply:
+    name: plan (PR) / apply (main)
+    needs: validate
+    if: vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # required for OIDC federation to AWS — NO static keys
+      pull-requests: write # to surface the plan as a PR comment (future use)
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-west-3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform -chdir="${TF_WORKING_DIR}" init -input=false
+
+      # Pull request -> read-only plan (no changes applied).
+      - name: terraform plan
+        if: github.event_name == 'pull_request'
+        run: terraform -chdir="${TF_WORKING_DIR}" plan -input=false -no-color
+
+      # Push to main -> apply.
+      - name: terraform apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform -chdir="${TF_WORKING_DIR}" apply -auto-approve -input=false -no-color

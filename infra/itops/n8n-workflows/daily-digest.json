@@ -1,0 +1,112 @@
+{
+  "name": "daily-digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 9 * * *" }
+          ]
+        }
+      },
+      "id": "node-schedule",
+      "name": "Schedule 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5678/api/v1/workflows?limit=250",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-API-KEY", "value": "={{ $env.N8N_API_KEY }}" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "neverError": true, "responseFormat": "json" } }
+        }
+      },
+      "id": "node-fetch-workflows",
+      "name": "Fetch workflows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5678/api/v1/executions?limit=250",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-API-KEY", "value": "={{ $env.N8N_API_KEY }}" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "neverError": true, "responseFormat": "json" } }
+        }
+      },
+      "id": "node-fetch-executions",
+      "name": "Fetch executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// daily-digest — agrège la santé de la pipeline n8n sur 24h.\nconst NOW = Date.now();\nconst WINDOW_MS = 24 * 60 * 60 * 1000;\nconst cutoff = NOW - WINDOW_MS;\n\nconst dateLabel = new Date(NOW).toLocaleString('fr-FR', {\n  timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit',\n  hour: '2-digit', minute: '2-digit',\n});\n\nconst wfResp = $('Fetch workflows').first().json;\nconst exResp = $('Fetch executions').first().json;\n\n// Chemin dégradé : API n8n injoignable / réponse malformée.\nif (!wfResp || !Array.isArray(wfResp.data) || !exResp || !Array.isArray(exResp.data)) {\n  return { json: { content: `📊 Ratis n8n — santé pipeline 24h (${dateLabel})\\n⚠️ API n8n injoignable — digest indisponible` } };\n}\n\n// Map workflowId -> nom.\nconst nameById = {};\nfor (const wf of wfResp.data) nameById[wf.id] = wf.name;\n\n// Filtre sur les dernières 24h.\nconst recent = exResp.data.filter((e) => {\n  const t = new Date(e.startedAt).getTime();\n  return !Number.isNaN(t) && t >= cutoff;\n});\n\n// Agrégation.\nconst perWorkflow = {};\nlet failures = 0;\nconst failingWorkflows = new Set();\nlet latencySum = 0;\nlet latencyCount = 0;\n\nfor (const e of recent) {\n  const name = nameById[e.workflowId] || e.workflowId;\n  perWorkflow[name] = (perWorkflow[name] || 0) + 1;\n  if (e.status === 'error') {\n    failures += 1;\n    failingWorkflows.add(name);\n  }\n  if (e.startedAt && e.stoppedAt) {\n    const d = new Date(e.stoppedAt).getTime() - new Date(e.startedAt).getTime();\n    if (!Number.isNaN(d) && d >= 0) {\n      latencySum += d;\n      latencyCount += 1;\n    }\n  }\n}\n\nconst total = recent.length;\nconst avgLatency = latencyCount > 0 ? Math.round(latencySum / latencyCount) : null;\n\nconst perWfStr = Object.entries(perWorkflow)\n  .map(([n, c]) => `${n} ${c}`)\n  .join(' · ') || 'aucune';\nconst failLine = failures === 0\n  ? '• Échecs : 0'\n  : `• ⚠️ Échecs : ${failures} (${[...failingWorkflows].join(', ')})`;\nconst latLine = avgLatency === null\n  ? '• Latence moyenne : n/a'\n  : `• Latence moyenne : ${avgLatency} ms`;\n\nconst content = [\n  `📊 Ratis n8n — santé pipeline 24h (${dateLabel})`,\n  `• Exécutions : ${total} (${perWfStr})`,\n  failLine,\n  latLine,\n].join('\\n');\n\nreturn { json: { content } };"
+      },
+      "id": "node-aggregate",
+      "name": "Aggregate digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_DISCORD_DIGEST_WEBHOOK_URL }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.content }) }}",
+        "options": {}
+      },
+      "id": "node-post-discord",
+      "name": "Post to Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Schedule 09:00": {
+      "main": [[{ "node": "Fetch workflows", "type": "main", "index": 0 }]]
+    },
+    "Fetch workflows": {
+      "main": [[{ "node": "Fetch executions", "type": "main", "index": 0 }]]
+    },
+    "Fetch executions": {
+      "main": [[{ "node": "Aggregate digest", "type": "main", "index": 0 }]]
+    },
+    "Aggregate digest": {
+      "main": [[{ "node": "Post to Discord", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "id": "daily-digest-v0",
+  "tags": [],
+  "pinData": {},
+  "meta": {}
+}

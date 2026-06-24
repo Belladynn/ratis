@@ -1,0 +1,72 @@
+# ============================================================
+# Ratis — Infrastructure locale de développement
+# ============================================================
+# Usage :
+#   docker compose up -d        ← démarre en arrière-plan
+#   docker compose down         ← arrête
+#   docker compose down -v      ← arrête + supprime les données
+#   docker compose logs -f      ← suit les logs
+#
+# DATABASE_URL=postgresql+psycopg://ratis:ratis@localhost:5432/ratis_dev
+#
+# Services inclus :
+#   - PostgreSQL 16 (schéma appliqué automatiquement au premier démarrage)
+#
+# Services inclus :
+#   - Redis 7 (cache + queues)
+#
+# Services à ajouter plus tard :
+#   - OSRM (calcul d'itinéraires)
+#   - PaddleOCR (si besoin de l'isoler)
+#
+# REDIS_URL=redis://localhost:6379/0
+# ============================================================
+
+services:
+  postgres:
+    build:
+      context: ./db
+    image: ratis-postgis:16-3
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ratis_dev
+      POSTGRES_USER: ratis
+      POSTGRES_PASSWORD: ratis  # pragma: allowlist secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ratis -d ratis_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Migrations runner — opt-in (profile=migrate). Mirrors the prod service so
+  # devs can reproduce the deploy migration flow locally :
+  #   docker compose --profile migrate run --rm migrations
+  # Targets ratis_dev DB. Idempotent ; no-op if already at head.
+  migrations:
+    profiles: ["migrate"]
+    build:
+      context: .
+      dockerfile: webservices/ratis_migrations/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://ratis:ratis@postgres:5432/ratis_dev  # pragma: allowlist secret
+
+volumes:
+  postgres_data:

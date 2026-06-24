@@ -1,0 +1,218 @@
+# ============================================================
+# Ratis — Self-hosted GitHub Actions Runners (Docker-in-Docker)
+# ============================================================
+# Prérequis :
+#   - Créer un PAT GitHub : Settings → Developer settings →
+#     Personal access tokens → Tokens (classic) → scope : repo
+#   - Le stocker dans le Keychain macOS (PAS de .env — cf ARCH_agent_mcp.md) :
+#       security add-generic-password -a "$USER" -s ratis-runner-pat -U \
+#         -D "GitHub PAT for Ratis CI runners" -w "<paste-PAT>"
+#
+# Usage :
+#   cd runner
+#   ./start.sh                ← démarre les 16 runners (lit le PAT du Keychain)
+#   docker compose down       ← arrête + désenregistre (stop_grace 120s)
+#   docker compose logs -f    ← logs en live
+# `docker compose up -d` direct fonctionne aussi si ACCESS_TOKEN est exporté.
+#
+# Noms fixes : ratis-runner-1 … ratis-runner-16
+# Les runners se réenregistrent avec le même nom au redémarrage
+# (hostname Docker explicite + RUNNER_NAME + RUNNER_WORKDIR fixes).
+# stop_grace_period=120s garantit la désinscription propre sur SIGTERM.
+#
+# Configuration scaled to 16 runners pour Mac mini M4 Pro 48 GB
+# (migration 2026-05-04). Si downgrade nécessaire, supprimer
+# runner-9 … runner-16 ci-dessous.
+#
+# En cas d'accumulation de ghosts (bug passé ou coupure abrupte) :
+#   scripts/cleanup-ghost-runners.sh
+# ============================================================
+
+x-runner-env: &runner-env
+  REPO_URL: https://github.com/Belladynn/ratis
+  ACCESS_TOKEN: ${ACCESS_TOKEN:-}
+  RUNNER_WORKDIR: /tmp/github-runner
+  RUNNER_SCOPE: repo
+  LABELS: self-hosted,linux,docker
+  EPHEMERAL: "false"
+  DISABLE_AUTOMATIC_DEREGISTRATION: "false"
+  DOCKER_HOST: tcp://dind:2375
+
+x-runner-base: &runner-base
+  # Pinned tag (ubuntu-jammy) — `:latest` avait du flake en mi-2024.
+  image: myoung34/github-runner:ubuntu-jammy
+  restart: unless-stopped
+  # CRITIQUE — sans ça, SIGKILL avant désinscription = ghost runner sur GitHub.
+  stop_grace_period: 120s
+  # `host.docker.internal` → host gateway. Permet aux jobs batch
+  # (`secrets.DATABASE_URL` pointant sur host.docker.internal:5432) de
+  # joindre le PG du `docker-compose.yml` racine (host-mapped `5432:5432`).
+  # Sur Docker Desktop macOS le DNS est auto-mappé ; on le déclare quand
+  # même pour rester explicite + portable Linux (PR #287 a containerisé
+  # les runners → leur `localhost` n'est plus celui du Mac mini).
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  depends_on:
+    - dind
+    - postgres
+
+services:
+  dind:
+    image: docker:dind
+    restart: unless-stopped
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - dind_data:/var/lib/docker
+    command: ["dockerd", "--host=tcp://0.0.0.0:2375", "--tls=false"]
+
+  postgres:
+    build:
+      context: ../db
+    image: ratis-postgis:16-3
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ratis
+      POSTGRES_PASSWORD: ratis  # pragma: allowlist secret
+      POSTGRES_DB: ratis_test
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "ratis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
+
+  runner-1:
+    <<: *runner-base
+    hostname: ratis-runner-1
+    container_name: ratis-runner-1
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-1
+
+  runner-2:
+    <<: *runner-base
+    hostname: ratis-runner-2
+    container_name: ratis-runner-2
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-2
+
+  runner-3:
+    <<: *runner-base
+    hostname: ratis-runner-3
+    container_name: ratis-runner-3
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-3
+
+  runner-4:
+    <<: *runner-base
+    hostname: ratis-runner-4
+    container_name: ratis-runner-4
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-4
+
+  runner-5:
+    <<: *runner-base
+    hostname: ratis-runner-5
+    container_name: ratis-runner-5
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-5
+
+  runner-6:
+    <<: *runner-base
+    hostname: ratis-runner-6
+    container_name: ratis-runner-6
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-6
+
+  runner-7:
+    <<: *runner-base
+    hostname: ratis-runner-7
+    container_name: ratis-runner-7
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-7
+
+  runner-8:
+    <<: *runner-base
+    hostname: ratis-runner-8
+    container_name: ratis-runner-8
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-8
+
+  runner-9:
+    <<: *runner-base
+    hostname: ratis-runner-9
+    container_name: ratis-runner-9
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-9
+
+  runner-10:
+    <<: *runner-base
+    hostname: ratis-runner-10
+    container_name: ratis-runner-10
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-10
+
+  runner-11:
+    <<: *runner-base
+    hostname: ratis-runner-11
+    container_name: ratis-runner-11
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-11
+
+  runner-12:
+    <<: *runner-base
+    hostname: ratis-runner-12
+    container_name: ratis-runner-12
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-12
+
+  runner-13:
+    <<: *runner-base
+    hostname: ratis-runner-13
+    container_name: ratis-runner-13
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-13
+
+  runner-14:
+    <<: *runner-base
+    hostname: ratis-runner-14
+    container_name: ratis-runner-14
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-14
+
+  runner-15:
+    <<: *runner-base
+    hostname: ratis-runner-15
+    container_name: ratis-runner-15
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-15
+
+  runner-16:
+    <<: *runner-base
+    hostname: ratis-runner-16
+    container_name: ratis-runner-16
+    environment:
+      <<: *runner-env
+      RUNNER_NAME: ratis-runner-16
+
+volumes:
+  dind_data:
+  pg_data:

@@ -1,0 +1,22 @@
+name        = "support_reset_stuck_optimized_route"
+purpose     = "Reset stuck computing optimized_routes for a list (regime non_money, facing)."
+facing      = true
+direction   = "fix"
+money_tier  = "non_money"
+
+[[args]]
+name      = "p_list_id"
+type      = "uuid"
+required  = true
+
+[[affects]]
+table   = "optimized_routes"
+op      = "update"
+rows    = 1
+columns = ["status"]
+
+# HSP3 — trust level + allowed callers (cf docs/superpowers/specs/2026-05-20-db-pipeline-hsp3-human-gate-design.md §M5).
+# manual = gate humain systématique. Graduation = proposition séparée mode="graduation".
+trust_level_initial = "manual"
+# HSP4 enforcera l'identité du caller ; en HSP3 on initialise au caller de référence.
+allowed_callers = ["claude-code-main"]

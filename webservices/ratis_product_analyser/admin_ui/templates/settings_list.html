@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Settings{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-2">Settings runtime</h1>
+<p class="mb-6 text-slate-600 text-sm">
+  Configuration éditable via UI (paramètres économiques) ou figée par PR git
+  (algos / infra). Toute modification est tracée dans l'audit log.
+</p>
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <section>
+    <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+      <span>Editables</span>
+      <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">{{ editable | length }}</span>
+    </h2>
+    <div class="space-y-2">
+      {% for s in editable %}
+      <a href="/admin/ui/settings/{{ s.section }}"
+         class="block bg-white shadow rounded p-3 hover:bg-slate-100"
+         data-testid="tile-editable-{{ s.section }}">
+        <div class="flex items-center justify-between">
+          <div class="font-mono text-sm font-medium">{{ s.section }}</div>
+          <div class="text-xs text-slate-500">
+            {% if s.seeded %}
+              {{ s.key_count }} clé{{ 's' if s.key_count != 1 else '' }} ·
+              {{ s.updated_at_human }}
+            {% else %}
+              <span class="italic">non seedée</span>
+            {% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+      <span>Frozen</span>
+      <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded">{{ frozen | length }}</span>
+    </h2>
+    <div class="space-y-2">
+      {% for s in frozen %}
+      <a href="/admin/ui/settings/{{ s.section }}"
+         class="block bg-white shadow rounded p-3 hover:bg-slate-100"
+         data-testid="tile-frozen-{{ s.section }}">
+        <div class="flex items-center justify-between">
+          <div class="font-mono text-sm font-medium">{{ s.section }}</div>
+          <div class="text-xs text-slate-500">
+            {% if s.seeded %}
+              {{ s.key_count }} clé{{ 's' if s.key_count != 1 else '' }} ·
+              {{ s.updated_at_human }}
+            {% else %}
+              <span class="italic">non seedée</span>
+            {% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="mt-8 text-sm">
+  <a href="/admin/ui/settings/audit" class="text-slate-600 hover:underline">Audit log →</a>
+</div>
+{% endblock %}

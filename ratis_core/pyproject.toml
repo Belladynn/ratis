@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ratis_core"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy>=2.0",
+    "pydantic[email]>=2.0",
+    "psycopg[binary]>=3.0",
+    "python-jose[cryptography]>=3.5.0",
+    "fastapi>=0.115.0",
+    "python-magic>=0.4.27",
+    "python-magic-bin>=0.4.14 ; sys_platform == 'win32'",
+    "httpx>=0.28.1,<1",
+    "pyotp>=2.9",
+    "geoalchemy2>=0.20.0",
+    "cryptography>=46.0.6",
+    "pglast>=7,<8",
+]
+
+[dependency-groups]
+# Alembic is a workspace/root migration tool, not a ratis_core runtime dep.
+# But ratis_core's migration tests import it directly
+# (tests/test_schema_sync.py → alembic.autogenerate / alembic.migration) and
+# the shared HSP alembic harness (tests/_alembic_fixture.py) shells out to
+# `uv run alembic upgrade heads`. The CI test job syncs this package in
+# isolation (`uv sync --package ratis_core --frozen`), which does NOT pull the
+# root `alembic` dep — so it must be declared here for those tests to collect
+# and run. Version pinned to match root + ratis_migrations (alembic>=1.18.4).
+dev = [
+    "alembic>=1.18.4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["ratis_core"]

@@ -1,0 +1,111 @@
+name: batch-reconciliation
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "batch/ratis_batch_reconciliation/**"
+      - "ratis_core/**"
+      - "alembic/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/batch_reconciliation.yml"
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "0 6 * * *"   # daily @ 06:00 UTC — désactivé (DB locale alpha)
+
+# Serialize runs per ref so a slow scheduled batch never overlaps the next
+# tick. cancel-in-progress=false → the new run queues behind the running one.
+concurrency:
+  group: batch-reconciliation-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uvx ruff check batch/ratis_batch_reconciliation/
+
+  sast:
+    name: SAST (bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - run: uvx bandit[toml] -r batch/ratis_batch_reconciliation/ -ll -q -c pyproject.toml
+
+  test-reconciliation:
+    name: Tests — ratis_batch_reconciliation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, sast]
+    if: github.event_name != 'schedule'
+    # Postgres 16 + PostGIS as an ephemeral service container, reachable on
+    # localhost (GitHub maps the container port to the runner). The conftest
+    # runs `CREATE EXTENSION postgis`, so a PostGIS image is required.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: ratis
+          POSTGRES_PASSWORD: ratis
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-groups --all-packages
+      - name: Ensure test database exists (idempotent, uses psycopg — no psql on runner)
+        run: |
+          uv run python -c "
+          import psycopg
+          with psycopg.connect('postgresql://ratis:ratis@localhost:5432/postgres', autocommit=True) as c:
+              with c.cursor() as cur:
+                  cur.execute(\"SELECT 1 FROM pg_database WHERE datname='ratis_test_reconciliation'\")
+                  if cur.fetchone() is None:
+                      cur.execute('CREATE DATABASE ratis_test_reconciliation')
+                      print('created ratis_test_reconciliation')
+                  else:
+                      print('ratis_test_reconciliation already exists')
+          "
+      - name: Run tests (ratis_batch_reconciliation)
+        run: uv run pytest batch/ratis_batch_reconciliation/tests/ -q
+        env:
+          PYTHONPATH: batch/ratis_batch_reconciliation
+          DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_reconciliation
+          TEST_DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_reconciliation
+          REWARDS_BASE_URL: http://rewards.test
+          INTERNAL_API_KEY: test-internal-key
+
+  # run job kept commented until prod DB is wired (cf ARCH_deployment.md
+  # § "Stratégie hébergement"). Trigger manuel via workflow_dispatch.
+  # reconciliation-run:
+  #   name: Run reconciliation
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'workflow_dispatch'
+  #   ...

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Audit log{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Audit log viewer</h1>
+
+<form method="get" action="/admin/ui/audit-log" class="bg-white shadow rounded p-4 mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+  <div class="md:col-span-2">
+    <label class="block text-xs font-semibold mb-1" for="entity_id">UUID (receipt / parsed_ticket / scan)</label>
+    <input type="text" id="entity_id" name="entity_id" value="{{ entity_id or '' }}"
+           class="w-full border rounded px-2 py-1 font-mono text-xs" />
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1" for="phase">Phase</label>
+    <select id="phase" name="phase" class="w-full border rounded px-2 py-1">
+      <option value="">(toutes)</option>
+      {% for p in allowed_phases %}
+        <option value="{{ p }}" {% if phase == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1" for="level">Level</label>
+    <select id="level" name="level" class="w-full border rounded px-2 py-1">
+      <option value="">(tous)</option>
+      {% for l in allowed_levels %}
+        <option value="{{ l }}" {% if level == l %}selected{% endif %}>{{ l }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="md:col-span-4">
+    <button type="submit"
+            class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700">
+      Rechercher
+    </button>
+    {% if error %}
+      <span class="ml-3 text-sm text-red-700" data-testid="audit-error">{{ error }}</span>
+    {% endif %}
+  </div>
+</form>
+
+{% if rows is not none %}
+  {% if not rows %}
+    <p class="text-slate-500" data-testid="empty">Aucun event trouvé.</p>
+  {% else %}
+    <table class="w-full bg-white shadow rounded text-sm">
+      <thead class="bg-slate-100 text-left">
+        <tr>
+          <th class="px-3 py-2">Created</th>
+          <th class="px-3 py-2">Phase</th>
+          <th class="px-3 py-2">Level</th>
+          <th class="px-3 py-2">Event</th>
+          <th class="px-3 py-2">Scan</th>
+          <th class="px-3 py-2">ParsedTicket</th>
+          <th class="px-3 py-2">Payload</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="border-t align-top" data-testid="audit-row-{{ r.id }}">
+          <td class="px-3 py-2 text-xs whitespace-nowrap">{{ r.created_at }}</td>
+          <td class="px-3 py-2">{{ r.phase }}</td>
+          <td class="px-3 py-2">{{ r.level }}</td>
+          <td class="px-3 py-2 font-mono text-xs">{{ r.event }}</td>
+          <td class="px-3 py-2 font-mono text-xs">{{ r.scan_id or '-' }}</td>
+          <td class="px-3 py-2 font-mono text-xs">{{ r.parsed_ticket_id or '-' }}</td>
+          <td class="px-3 py-2 font-mono text-xs"><pre class="whitespace-pre-wrap">{{ r.payload_json }}</pre></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endif %}
+{% endblock %}

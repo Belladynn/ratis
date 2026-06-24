@@ -1,0 +1,94 @@
+name: report-batch-outcome
+description: |
+  POST le résultat final d'un workflow batch à la sentinelle n8n.
+  Best-effort : un POST KO ne fait jamais échouer le batch lui-même.
+  Pattern HMAC-SHA256 + timestamp anti-replay aligné avec sentry-ingest.
+inputs:
+  webhook_url:
+    description: "URL complète du webhook n8n /webhook/batch-outcome"
+    required: true
+  secret:
+    description: "Secret HMAC partagé (BATCH_SENTINEL_WEBHOOK_SECRET)"
+    required: true
+  conclusion:
+    description: "Conclusion du job — typiquement ${{ job.status }}"
+    required: true
+  commit_sha:
+    description: "Commit SHA"
+    required: false
+    default: ${{ github.sha }}
+runs:
+  using: composite
+  steps:
+    - name: POST outcome to n8n batch-sentinel
+      shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook_url }}
+        SECRET: ${{ inputs.secret }}
+        CONCLUSION: ${{ inputs.conclusion }}
+        COMMIT_SHA: ${{ inputs.commit_sha }}
+        WORKFLOW_NAME: ${{ github.workflow }}
+        RUN_ID: ${{ github.run_id }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+        SERVER_URL: ${{ github.server_url }}
+        REPO: ${{ github.repository }}
+        ACTOR: ${{ github.actor }}
+        REF: ${{ github.ref }}
+        STEP_START: ${{ env.STEP_START }}
+      run: |
+        set +x  # Never leak the secret via xtrace.
+        set -euo pipefail
+
+        if [ -z "$WEBHOOK_URL" ] || [ -z "$SECRET" ]; then
+          echo "[report-batch-outcome] webhook_url or secret empty — skipping (likely PR from fork or secret not set on this branch)."
+          exit 0
+        fi
+
+        COMPLETED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        NOW_EPOCH="$(date -u +%s)"
+
+        if [ -n "${STEP_START:-}" ]; then
+          DURATION_S=$((NOW_EPOCH - STEP_START))
+          STARTED_AT="$(date -u -d "@${STEP_START}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || python3 -c "import datetime; print(datetime.datetime.utcfromtimestamp(${STEP_START}).strftime('%Y-%m-%dT%H:%M:%SZ'))")"
+        else
+          DURATION_S=null
+          STARTED_AT=null
+        fi
+
+        RUN_URL="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
+
+        BODY=$(DURATION_S="$DURATION_S" STARTED_AT="$STARTED_AT" RUN_URL="$RUN_URL" COMPLETED_AT="$COMPLETED_AT" python3 -c "
+        import json, os, sys
+        duration = os.environ.get('DURATION_S', 'null')
+        started = os.environ.get('STARTED_AT', 'null')
+        payload = {
+            'workflow_name': os.environ['WORKFLOW_NAME'],
+            'conclusion': os.environ['CONCLUSION'],
+            'run_id': os.environ['RUN_ID'],
+            'run_url': os.environ['RUN_URL'],
+            'started_at': None if started == 'null' else started,
+            'completed_at': os.environ['COMPLETED_AT'],
+            'duration_s': None if duration == 'null' else int(duration),
+            'commit_sha': os.environ['COMMIT_SHA'],
+            'attempt': int(os.environ['RUN_ATTEMPT']),
+            'actor': os.environ['ACTOR'],
+            'ref': os.environ['REF'],
+        }
+        sys.stdout.write(json.dumps(payload, separators=(',', ':'), sort_keys=True))
+        ")
+
+        SIG_HEX=$(printf "%s" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')
+        SIG_HEADER="sha256=${SIG_HEX}"
+
+        echo "[report-batch-outcome] POSTing $WORKFLOW_NAME conclusion=$CONCLUSION run_id=$RUN_ID duration_s=$DURATION_S"
+
+        HTTP_CODE=$(curl -fsS -m 10 -o /dev/null -w "%{http_code}" \
+          -X POST "$WEBHOOK_URL" \
+          -H "Content-Type: application/json" \
+          -H "X-Signature-256: $SIG_HEADER" \
+          -H "X-Timestamp: $NOW_EPOCH" \
+          -H "User-Agent: ratis-batch-sentinel/1.0" \
+          --data-binary "$BODY" 2>&1) || HTTP_CODE="curl_failed"
+
+        echo "[report-batch-outcome] sentinel response: $HTTP_CODE"
+        exit 0  # Best-effort — never fail the parent job.

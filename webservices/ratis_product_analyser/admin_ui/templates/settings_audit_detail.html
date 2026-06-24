@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Audit detail{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/settings/audit" class="text-sm text-slate-600 hover:underline">← Retour à l'audit log</a>
+</div>
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="audit-detail-error">
+    {{ error }}
+  </div>
+{% endif %}
+
+{% if audit %}
+<h1 class="text-2xl font-bold mb-2 flex items-center gap-3">
+  <span class="font-mono">{{ audit.section }}</span>
+  {% set st = audit.status %}
+  {% if st == 'applied' %}
+    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded">applied</span>
+  {% elif st == 'pending_2fa' %}
+    <span class="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">pending_2fa</span>
+  {% elif st == 'expired' %}
+    <span class="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded">expired</span>
+  {% elif st == 'cancelled' %}
+    <span class="text-xs bg-rose-100 text-rose-800 px-2 py-1 rounded">cancelled</span>
+  {% else %}
+    <span class="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">{{ st }}</span>
+  {% endif %}
+</h1>
+
+<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm bg-white shadow rounded p-4 mb-6">
+  <div>
+    <dt class="font-semibold text-xs uppercase text-slate-500">Audit ID</dt>
+    <dd class="font-mono text-xs">{{ audit.id }}</dd>
+  </div>
+  <div>
+    <dt class="font-semibold text-xs uppercase text-slate-500">Operator</dt>
+    <dd>{{ audit.operator or '—' }}</dd>
+  </div>
+  <div>
+    <dt class="font-semibold text-xs uppercase text-slate-500">Timestamp</dt>
+    <dd class="font-mono text-xs">{{ audit.timestamp or '—' }}</dd>
+  </div>
+  {% if audit.applied_at %}
+  <div>
+    <dt class="font-semibold text-xs uppercase text-slate-500">Applied at</dt>
+    <dd class="font-mono text-xs">{{ audit.applied_at }}</dd>
+  </div>
+  {% endif %}
+  {% if audit.expires_at %}
+  <div>
+    <dt class="font-semibold text-xs uppercase text-slate-500">Expires at</dt>
+    <dd class="font-mono text-xs">{{ audit.expires_at }}</dd>
+  </div>
+  {% endif %}
+</dl>
+
+<section class="mb-6">
+  <h2 class="text-lg font-semibold mb-2">Reason</h2>
+  <div class="bg-white shadow rounded p-3 text-sm whitespace-pre-wrap">
+    {{ audit.reason or '(non renseigné)' }}
+  </div>
+</section>
+
+{% if audit.diff %}
+<section class="mb-6">
+  <h2 class="text-lg font-semibold mb-2">Résumé du diff</h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+    <div class="bg-emerald-50 border border-emerald-200 rounded p-3">
+      <div class="text-xs uppercase text-emerald-700 font-semibold mb-1">
+        Ajoutés ({{ audit.diff.added | length }})
+      </div>
+      {% if audit.diff.added %}
+        <ul class="font-mono text-xs space-y-0.5">
+          {% for k in audit.diff.added %}<li>{{ k }}</li>{% endfor %}
+        </ul>
+      {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
+    </div>
+    <div class="bg-rose-50 border border-rose-200 rounded p-3">
+      <div class="text-xs uppercase text-rose-700 font-semibold mb-1">
+        Supprimés ({{ audit.diff.removed | length }})
+      </div>
+      {% if audit.diff.removed %}
+        <ul class="font-mono text-xs space-y-0.5">
+          {% for k in audit.diff.removed %}<li>{{ k }}</li>{% endfor %}
+        </ul>
+      {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
+    </div>
+    <div class="bg-amber-50 border border-amber-200 rounded p-3">
+      <div class="text-xs uppercase text-amber-800 font-semibold mb-1">
+        Modifiés ({{ audit.diff.changed | length }})
+      </div>
+      {% if audit.diff.changed %}
+        <ul class="font-mono text-xs space-y-0.5">
+          {% for k in audit.diff.changed %}<li>{{ k }}</li>{% endfor %}
+        </ul>
+      {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <h2 class="text-lg font-semibold mb-2">Old data</h2>
+    <pre class="bg-rose-50 border border-rose-200 rounded p-3 text-xs whitespace-pre-wrap font-mono overflow-auto">{{ old_data_pretty }}</pre>
+  </div>
+  <div>
+    <h2 class="text-lg font-semibold mb-2">New data</h2>
+    <pre class="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs whitespace-pre-wrap font-mono overflow-auto">{{ new_data_pretty }}</pre>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

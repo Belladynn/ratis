@@ -1,0 +1,18 @@
+{
+  "action": "closed",
+  "number": 314,
+  "pull_request": {
+    "number": 314,
+    "merged": true,
+    "merged_at": "2026-05-06T18:00:00Z",
+    "title": "fix(scan): handle blurry OCR images",
+    "body": "## Summary\n\n- Detect blur via Laplacian variance.\n- Reject if confidence < 0.5.\n\nCloses #abc123def4567890abc123def4567890\n\nFixes #1234567890abcdef1234567890abcdef",
+    "html_url": "https://github.com/Belladynn/ratis/pull/314",
+    "user": {
+      "login": "guillaume"
+    }
+  },
+  "repository": {
+    "full_name": "Belladynn/ratis"
+  }
+}

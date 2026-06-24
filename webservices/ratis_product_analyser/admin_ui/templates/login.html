@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Login{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto mt-12 bg-white shadow rounded p-6">
+  <h1 class="text-xl font-bold mb-4">Connexion admin</h1>
+  {% if error %}
+    <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="login-error">
+      {{ error }}
+    </div>
+  {% endif %}
+  <form method="post" action="/admin/ui/login" class="space-y-4">
+    <div>
+      <label class="block text-sm font-medium mb-1" for="api_key">ADMIN_API_KEY</label>
+      <input type="password" id="api_key" name="api_key" required autofocus
+             class="w-full border rounded px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="operator">Opérateur (handle)</label>
+      <input type="text" id="operator" name="operator" required
+             pattern="[A-Za-z0-9_\-\.]{1,64}"
+             class="w-full border rounded px-3 py-2"
+             placeholder="ex: guillaume" />
+    </div>
+    <button type="submit"
+            class="w-full bg-slate-900 text-white py-2 rounded hover:bg-slate-700">Se connecter</button>
+  </form>
+</div>
+{% endblock %}

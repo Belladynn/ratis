@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Skills review{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-2">Skills review</h1>
+<p class="text-sm text-slate-500 mb-4">
+  Skills candidates générés par le Hermes <code>claude-code-postmortem</code> (POC 8) — review, promote, archive ou drop.
+</p>
+
+<div class="flex gap-4 mb-4 text-sm">
+  <span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded">Actifs : <strong>{{ counts.active }}</strong></span>
+  <span class="bg-amber-100 text-amber-800 px-3 py-1 rounded">Candidates : <strong>{{ counts.candidate }}</strong></span>
+  <span class="bg-slate-200 text-slate-700 px-3 py-1 rounded">Archivés : <strong>{{ counts.archived }}</strong></span>
+</div>
+
+{% if unreviewed_candidates_count and unreviewed_candidates_count > 0 %}
+  <div class="mb-4 bg-orange-100 border border-orange-300 text-orange-900 px-3 py-2 rounded text-sm flex justify-between items-center" data-testid="unreviewed-banner">
+    <span>
+      <strong>{{ unreviewed_candidates_count }}</strong> candidate{{ 's' if unreviewed_candidates_count > 1 else '' }}
+      en attente de review par <code>claude-skill-reviewer</code> (routine quotidienne).
+    </span>
+    <a href="/admin/ui/skills?reviewed=false" class="underline text-orange-900 hover:text-orange-700">voir la queue →</a>
+  </div>
+{% endif %}
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<form method="get" action="/admin/ui/skills" class="flex gap-3 items-end mb-4 text-sm">
+  <div>
+    <label class="block text-xs text-slate-600 mb-1" for="bucket">Bucket</label>
+    <select name="bucket" id="bucket" class="border rounded px-2 py-1 bg-white">
+      <option value="" {% if not bucket %}selected{% endif %}>tous</option>
+      <option value="candidate" {% if bucket == 'candidate' %}selected{% endif %}>candidate</option>
+      <option value="active" {% if bucket == 'active' %}selected{% endif %}>active</option>
+      <option value="archived" {% if bucket == 'archived' %}selected{% endif %}>archived</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-600 mb-1" for="reviewed">Reviewed</label>
+    <select name="reviewed" id="reviewed" class="border rounded px-2 py-1 bg-white" data-testid="reviewed-filter">
+      <option value="true" {% if reviewed == 'true' %}selected{% endif %}>reviewed-only (def.)</option>
+      <option value="false" {% if reviewed == 'false' %}selected{% endif %}>queue (pending)</option>
+      <option value="any" {% if reviewed == 'any' %}selected{% endif %}>tous</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-600 mb-1" for="search">Recherche (name / description)</label>
+    <input type="text" name="search" id="search" value="{{ search }}" class="border rounded px-2 py-1 w-64" placeholder="ex: github, deploy…" />
+  </div>
+  <button type="submit" class="bg-slate-900 text-white px-3 py-1 rounded hover:bg-slate-700">Filtrer</button>
+  {% if bucket or search or reviewed != 'true' %}
+  <a href="/admin/ui/skills" class="text-slate-600 hover:underline">reset</a>
+  {% endif %}
+</form>
+
+{% if not skills %}
+  <p class="text-slate-500" data-testid="empty">Aucun skill ne correspond aux filtres.</p>
+{% else %}
+<table class="w-full bg-white shadow rounded text-sm">
+  <thead class="bg-slate-100 text-left">
+    <tr>
+      <th class="px-3 py-2">Name / Type</th>
+      <th class="px-3 py-2">Description</th>
+      <th class="px-3 py-2">Bucket</th>
+      <th class="px-3 py-2">Review</th>
+      <th class="px-3 py-2">ROI</th>
+      <th class="px-3 py-2">Source session</th>
+      <th class="px-3 py-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in skills %}
+    <tr class="border-t align-top" data-testid="skill-row-{{ s.name }}">
+      <td class="px-3 py-2 font-medium font-mono text-xs">
+        {{ s.name }}
+        {% if s.update_target %}
+          <div class="mt-1" data-testid="update-badge-{{ s.name }}">
+            <span class="bg-sky-100 text-sky-800 px-2 py-0.5 rounded text-[10px]">🔄 Update of</span>
+            <a class="text-sky-700 hover:underline text-[10px] font-mono" href="/admin/ui/skills?bucket=active&search={{ s.update_target }}">{{ s.update_target }}</a>
+          </div>
+          {% if s.update_reason %}
+            <div class="mt-1 text-[10px] text-slate-500 font-normal italic">{{ s.update_reason }}</div>
+          {% endif %}
+        {% else %}
+          <div class="mt-1"><span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px]">new candidate</span></div>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2 text-slate-700 max-w-md">{{ s.description }}</td>
+      <td class="px-3 py-2">
+        {% if s.bucket == 'active' %}
+          <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-xs">active</span>
+        {% elif s.bucket == 'candidate' %}
+          <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs">candidate</span>
+        {% else %}
+          <span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs">archived</span>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2 text-xs">
+        {% if s.bucket == 'candidate' %}
+          {% if s.reviewed_by_claude %}
+            <div class="flex flex-col gap-0.5" data-testid="review-cell-{{ s.name }}">
+              {% if s.security_assessment == 'safe' %}
+                <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] inline-block w-fit">✅ safe</span>
+              {% elif s.security_assessment == 'suspect' %}
+                <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] inline-block w-fit">⚠️ suspect</span>
+              {% elif s.security_assessment == 'malicious' %}
+                <span class="bg-red-100 text-red-800 px-2 py-0.5 rounded text-[10px] inline-block w-fit">🛑 malicious</span>
+              {% else %}
+                <span class="text-slate-400 text-[10px]">—</span>
+              {% endif %}
+              {% if s.verdict_v2 == 'promote' %}
+                <span class="text-[10px] text-slate-600">🟢 promote</span>
+              {% elif s.verdict_v2 == 'promote-as-update' %}
+                <span class="text-[10px] text-slate-600">🔄 promote-update</span>
+              {% elif s.verdict_v2 == 'archive' %}
+                <span class="text-[10px] text-slate-600">🔴 archive</span>
+              {% elif s.verdict_v2 == 'hold-for-improvement' %}
+                <span class="text-[10px] text-slate-600">🟡 hold</span>
+              {% endif %}
+              {% if s.quality_score is not none %}
+                <span class="text-[10px] text-slate-500">quality: {{ s.quality_score }}/100</span>
+              {% endif %}
+              {% if s.injection_patterns_detected is not none and s.injection_patterns_detected > 0 %}
+                <span class="text-[10px] text-red-600">flags: {{ s.injection_patterns_detected }}</span>
+              {% endif %}
+            </div>
+          {% else %}
+            <span class="bg-orange-100 text-orange-800 px-2 py-0.5 rounded text-[10px]" data-testid="review-pending-{{ s.name }}">⏳ pending review</span>
+          {% endif %}
+        {% else %}
+          <span class="text-slate-400 text-[10px]">—</span>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2 text-center">
+        {% if s.roi_verdict == 'promote' %}🟢{% elif s.roi_verdict == 'review' %}🟡{% elif s.roi_verdict == 'archive' %}🔴{% else %}—{% endif %}
+      </td>
+      <td class="px-3 py-2 text-xs text-slate-500 font-mono">{{ s.source_session or '—' }}</td>
+      <td class="px-3 py-2">
+        <div class="flex flex-wrap gap-1">
+          {% if s.bucket == 'candidate' %}
+            <form method="post" action="/admin/ui/skills/{{ s.name }}/promote" class="inline"
+                  {% if s.update_target %}onsubmit="return confirm('Remplacer le skill actif « {{ s.update_target }} » par cette nouvelle version ? L\'ancienne version sera archivée avec un timestamp.');"{% endif %}>
+              <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-xs" data-testid="promote-{{ s.name }}">
+                {% if s.update_target %}Replace {{ s.update_target }}{% else %}Promote{% endif %}
+              </button>
+            </form>
+            <form method="post" action="/admin/ui/skills/{{ s.name }}/archive" class="inline">
+              <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded text-xs" data-testid="archive-{{ s.name }}">Archive</button>
+            </form>
+            <form method="post" action="/admin/ui/skills/{{ s.name }}/drop" class="inline"
+                  onsubmit="return confirm('Supprimer définitivement le candidate « {{ s.name }} » ? Action irréversible.');">
+              <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs" data-testid="drop-{{ s.name }}">Drop</button>
+            </form>
+          {% elif s.bucket == 'active' %}
+            <form method="post" action="/admin/ui/skills/{{ s.name }}/archive" class="inline">
+              <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded text-xs" data-testid="archive-{{ s.name }}">Archive</button>
+            </form>
+          {% else %}
+            <span class="text-xs text-slate-400">aucune action</span>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="mt-3 text-xs text-slate-500">
+  total affiché : {{ skills | length }} · audit log : <code>.claude/skill-review-audit.jsonl</code>
+</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Saison {{ season.season_number if season else '?' }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/battlepass" class="text-sm text-slate-600 hover:underline">← Retour aux saisons</a>
+</div>
+
+{% if not season %}
+  <h1 class="text-2xl font-bold mb-3">Saison introuvable</h1>
+  <p class="text-sm text-slate-600">
+    {% if error %}{{ error }}{% else %}Saison introuvable.{% endif %}
+  </p>
+{% else %}
+<h1 class="text-2xl font-bold mb-2 flex items-center gap-3">
+  <span>#{{ season.season_number }} — {{ season.name }}</span>
+  {% if season.is_active %}
+    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded">Active</span>
+  {% else %}
+    <span class="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded">Inactive</span>
+  {% endif %}
+</h1>
+<p class="text-sm text-slate-500 font-mono mb-4">
+  {{ season.started_at }} → {{ season.ends_at }}
+</p>
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+{% if not season.is_active %}
+<section class="mb-6">
+  <form method="post" action="/admin/ui/battlepass/{{ season.id }}/validate" data-testid="season-activate-form">
+    <button type="submit"
+            class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
+            data-testid="season-activate-button">
+      Activer cette saison
+    </button>
+    <span class="ml-2 text-xs text-slate-500">
+      Une seule saison active à la fois — les autres restent inchangées.
+    </span>
+  </form>
+</section>
+{% endif %}
+
+<section>
+  <h2 class="text-lg font-semibold mb-3">Nouveau milestone (tier)</h2>
+  <p class="text-xs text-slate-500 mb-3">
+    Astuce : <strong>milestone_number</strong> = tier_level (1, 2, 3…) ;
+    <strong>cab_required</strong> = XP économique nécessaire (en CAB) pour le débloquer ;
+    <strong>reward_type</strong> ∈ {cab, gift_card, skin} ; <strong>reward_value</strong> = montant
+    (cab amount, denomination en centimes, ou skin id).
+  </p>
+  <form method="post" action="/admin/ui/battlepass/{{ season.id }}" class="bg-white shadow rounded p-4 space-y-3" data-testid="milestone-create-form">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="milestone_number">Milestone (tier_level)</label>
+        <input id="milestone_number" name="milestone_number" type="number" min="1" required
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="cab_required">CAB required</label>
+        <input id="cab_required" name="cab_required" type="number" min="0" required
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="reward_type">Reward type</label>
+        <select id="reward_type" name="reward_type" required
+                class="w-full text-sm border border-slate-300 rounded p-2">
+          <option value="cab">cab</option>
+          <option value="gift_card">gift_card</option>
+          <option value="skin">skin</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1" for="reward_value">Reward value</label>
+        <input id="reward_value" name="reward_value" type="number" min="0" required
+               class="w-full text-sm border border-slate-300 rounded p-2" />
+      </div>
+    </div>
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="subscriber_only" />
+      <span>Subscriber-only (bonus track abonnés)</span>
+    </label>
+    <div>
+      <button type="submit"
+              class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700"
+              data-testid="milestone-create-button">
+        Créer le milestone
+      </button>
+    </div>
+  </form>
+  <p class="mt-3 text-xs text-slate-500">
+    Le listing des milestones existants nécessite un endpoint RW dédié
+    (à ajouter en PR3 — voir <code>ARCH_admin_endpoints.md</code>). Pour l'instant
+    seule la création est exposée ici.
+  </p>
+</section>
+{% endif %}
+{% endblock %}

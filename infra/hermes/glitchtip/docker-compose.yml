@@ -1,0 +1,107 @@
+# GlitchTip — alternative Sentry self-hosted légère pour Ratis
+# Setup hors repo ($HOME/glitchtip/). Migration vers infra/itops/glitchtip/
+# quand validé (PR propre + ARCH entry).
+#
+# Usage :
+#   cp .env.example .env && $EDITOR .env  # (.env déjà créé au setup initial)
+#   docker compose up -d
+#   docker compose ps
+#   open http://localhost:8000   # créer compte admin au premier accès
+
+x-glitchtip-image: &glitchtip-image
+  image: glitchtip/glitchtip:latest
+  env_file: .env
+  depends_on:
+    glitchtip-postgres:
+      condition: service_healthy
+    glitchtip-valkey:
+      condition: service_healthy
+
+services:
+  glitchtip-postgres:
+    image: postgres:16-alpine
+    container_name: ratis-glitchtip-postgres
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - glitchtip-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip -d glitchtip"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # PG interne au stack glitchtip — pas exposé sur le host (isolation du PG Ratis)
+
+  glitchtip-valkey:
+    image: valkey/valkey:7-alpine
+    container_name: ratis-glitchtip-valkey
+    restart: unless-stopped
+    volumes:
+      - glitchtip-valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  glitchtip-migrate:
+    <<: *glitchtip-image
+    container_name: ratis-glitchtip-migrate
+    restart: "no"
+    command: ./manage.py migrate
+
+  glitchtip-web:
+    <<: *glitchtip-image
+    container_name: ratis-glitchtip-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"   # loopback only — Tailscale Funnel si externe plus tard
+    depends_on:
+      glitchtip-postgres:
+        condition: service_healthy
+      glitchtip-valkey:
+        condition: service_healthy
+      glitchtip-migrate:
+        condition: service_completed_successfully
+    networks:
+      default: {}             # réseau interne du stack glitchtip (PG, Valkey)
+      ratis_itops_net:        # bridge vers n8n + healthchecks (DNS alias `glitchtip-web`)
+        aliases:
+          - glitchtip-web
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  glitchtip-worker:
+    <<: *glitchtip-image
+    container_name: ratis-glitchtip-worker
+    restart: unless-stopped
+    command: ./bin/run-celery-with-beat.sh
+    depends_on:
+      glitchtip-postgres:
+        condition: service_healthy
+      glitchtip-valkey:
+        condition: service_healthy
+      glitchtip-migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+volumes:
+  glitchtip-pg-data:
+    name: ratis-glitchtip-pg-data
+  glitchtip-valkey-data:
+    name: ratis-glitchtip-valkey-data
+
+networks:
+  # Réseau interne au stack glitchtip (PG + Valkey isolés du reste)
+  default:
+    name: glitchtip_default
+  # Pont vers le réseau itops (n8n peut résoudre glitchtip-web via DNS Docker)
+  ratis_itops_net:
+    external: true

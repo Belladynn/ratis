@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title_suffix %} — {{ section }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/settings" class="text-sm text-slate-600 hover:underline">← Retour à la liste</a>
+</div>
+
+<h1 class="text-2xl font-bold mb-2 flex items-center gap-3">
+  <span class="font-mono">{{ section }}</span>
+  {% if editable %}
+    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded">Editable</span>
+  {% else %}
+    <span class="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded">Frozen</span>
+  {% endif %}
+</h1>
+
+{% if flash %}
+  <div class="mb-4 bg-amber-100 border border-amber-300 text-amber-900 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+{% if frozen_keys %}
+  <div class="mb-4 bg-rose-50 border border-rose-300 text-rose-900 px-3 py-2 rounded text-sm">
+    <strong>Sous-clés frozen :</strong>
+    {% for k in frozen_keys %}
+      <code class="font-mono bg-rose-100 px-1 rounded mx-0.5">{{ k }}</code>
+    {% endfor %}
+    — modifier une frozen sub-key renverra 403 (réservé PR git).
+  </div>
+{% endif %}
+
+{% if not editable %}
+  <p class="mb-3 text-sm text-slate-600">
+    Cette section est <strong>frozen</strong> — modifiable uniquement via PR git
+    pour traçabilité (algos / infra / templates).
+  </p>
+  <pre class="bg-slate-900 text-slate-100 p-4 rounded text-xs overflow-auto"
+       data-testid="readonly-preview">{{ data_pretty }}</pre>
+{% else %}
+  <form method="post" action="/admin/ui/settings/{{ section }}" data-testid="settings-form">
+    <label class="block mb-2 text-sm font-medium" for="data">JSON (full replace)</label>
+    <textarea id="data" name="data"
+              class="w-full font-mono text-xs bg-slate-900 text-slate-100 p-3 rounded border border-slate-700"
+              rows="20">{{ data_pretty }}</textarea>
+
+    <label class="block mt-4 mb-2 text-sm font-medium" for="reason">
+      Raison <span class="text-rose-600">*</span>
+      <span class="text-slate-500 font-normal">(min 8 caractères, motivation business)</span>
+    </label>
+    <textarea id="reason" name="reason"
+              class="w-full text-sm bg-white border border-slate-300 rounded p-2"
+              rows="3"
+              minlength="8"
+              required
+              placeholder="Pourquoi ce changement ? (ex: Bump CAB receipt 500→600 — alpha test data ramp)">{{ reason or '' }}</textarea>
+
+    <div class="mt-4 flex items-center gap-3">
+      <button type="submit"
+              class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700"
+              data-testid="save-button">
+        Confirm save
+      </button>
+      <span class="text-xs text-slate-500">
+        Une variation &gt; 50 % sur une clé numérique déclenche une validation 2FA (10 min).
+      </span>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

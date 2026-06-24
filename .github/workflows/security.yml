@@ -1,0 +1,122 @@
+name: Security (detect-secrets)
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  detect-secrets:
+    name: Detect secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Scan tracked tree against the committed baseline
+        # The audited inventory of known false positives (dev DB URLs, action
+        # SHAs, test fixtures, migration hashes) lives in .secrets.baseline.
+        # We rescan the tracked tree into a fresh baseline and compare ONLY the
+        # `results` set against the committed one — anything NEW means a secret
+        # that is not in the baseline. The `generated_at` timestamp and other
+        # metadata are ignored so an unchanged tree never false-fails.
+        run: |
+          # Word-splitting on `git ls-files` is intentional: detect-secrets takes
+          # the tracked-file list as positional args in a single process. The
+          # ~2k short repo paths stay far under ARG_MAX.
+          # shellcheck disable=SC2046
+          # Exclude the baseline itself: scanning it re-detects its own stored
+          # hashes as high-entropy strings (self-reference false positives).
+          uvx detect-secrets scan $(git ls-files | grep -v '^\.secrets\.baseline$') > /tmp/secrets.fresh.json
+
+          python3 - <<'PY'
+          import json, sys
+          committed = json.load(open(".secrets.baseline"))["results"]
+          fresh = json.load(open("/tmp/secrets.fresh.json"))["results"]
+
+          # A "new" finding = (file, hashed_secret) present in the fresh scan but
+          # absent from the committed baseline. Line-number shifts on an already
+          # known secret do not count.
+          def pairs(results):
+              return {(f, e["hashed_secret"]) for f, entries in results.items() for e in entries}
+
+          new = pairs(fresh) - pairs(committed)
+          if new:
+              print("::error::detect-secrets found secret(s) not present in .secrets.baseline.")
+              for f, h in sorted(new):
+                  print(f"  NEW: {f} (hashed_secret={h[:12]}...)")
+              print("If genuine: REMOVE and rotate the secret. If a false positive:")
+              print("  uvx detect-secrets scan $(git ls-files | grep -v secrets.baseline) > .secrets.baseline  (then commit)")
+              print("  or add '# pragma: allowlist secret' on the offending line.")
+              sys.exit(1)
+          print("No new secrets — tracked tree matches the committed baseline.")
+          PY
+
+  conventions:
+    name: Convention checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: No psycopg2
+        run: |
+          if rg --type py -l 'psycopg2' .; then
+            echo "ERROR: psycopg2 found — use psycopg (v3) only."
+            exit 1
+          fi
+          echo "OK — no psycopg2."
+
+      - name: No engine_from_config
+        run: |
+          if rg --type py -l 'engine_from_config' .; then
+            echo "ERROR: engine_from_config found — use make_engine from ratis_core.database."
+            exit 1
+          fi
+          echo "OK — no engine_from_config."
+
+      - name: create_engine only in ratis_core/database.py
+        run: |
+          hits=$(rg --type py -l 'create_engine' . | grep -v 'ratis_core/ratis_core/database\.py' || true)
+          if [ -n "$hits" ]; then
+            echo "ERROR: create_engine used outside ratis_core/database.py:"
+            echo "$hits"
+            echo "Use make_engine from ratis_core.database instead."
+            exit 1
+          fi
+          echo "OK — create_engine only in ratis_core/database.py."
+
+      - name: No HTTPException in service layers
+        run: |
+          hits=$(rg --type py -l 'HTTPException' -- webservices/*/services/ batch/ 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "ERROR: HTTPException in service layer — raise domain exceptions (ratis_core.exceptions) instead:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "OK — no HTTPException in service layers."
+
+  compose_env_passthrough:
+    name: docker-compose.prod.yml ↔ require_env drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install root dev deps (pytest + pyyaml)
+        run: uv sync --frozen
+
+      - name: Run compose env passthrough guard
+        run: uv run pytest scripts/tests/test_compose_env_passthrough.py -v

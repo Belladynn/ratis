@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Reward Config{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <a href="/admin/ui/reward-config" class="text-sm text-slate-600 hover:underline">← Retour aux configurations</a>
+</div>
+
+{% if not config %}
+  <h1 class="text-2xl font-bold mb-3">Configuration introuvable</h1>
+  <p class="text-sm text-slate-600">
+    {% if error %}{{ error }}{% else %}Configuration introuvable.{% endif %}
+  </p>
+{% else %}
+<h1 class="text-2xl font-bold mb-2">
+  Reward Config <span class="font-mono text-base text-slate-500">#{{ config.id }}</span>
+</h1>
+
+{% if flash %}
+  <div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+
+{% if error %}
+  <div class="mb-4 bg-red-100 border border-red-300 text-red-800 px-3 py-2 rounded text-sm" data-testid="error">
+    {{ error }}
+  </div>
+{% endif %}
+
+<form method="post" action="/admin/ui/reward-config/{{ config.id }}" class="bg-white shadow rounded p-4 space-y-3" data-testid="reward-config-edit-form">
+  <p class="text-xs text-slate-500">
+    PATCH partiel — laisser un champ inchangé si vous ne souhaitez pas le modifier.
+  </p>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div>
+      <label class="block text-sm font-medium mb-1" for="action_type">Action type</label>
+      <input id="action_type" name="action_type" type="text" maxlength="64"
+             value="{{ config.action_type or '' }}"
+             class="w-full text-sm border border-slate-300 rounded p-2 font-mono" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="base_amount">Base amount (CAB)</label>
+      <input id="base_amount" name="base_amount" type="number" min="0" max="1000000"
+             value="{{ config.base_amount }}"
+             class="w-full text-sm border border-slate-300 rounded p-2" />
+    </div>
+  </div>
+  <div class="flex items-center justify-between">
+    <button type="submit"
+            class="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-700"
+            data-testid="reward-config-save-button">
+      Enregistrer
+    </button>
+    <a href="/admin/ui/reward-config/{{ config.id }}/delete"
+       class="text-red-600 hover:underline text-sm"
+       data-testid="reward-config-delete-link">
+      Supprimer cette configuration…
+    </a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

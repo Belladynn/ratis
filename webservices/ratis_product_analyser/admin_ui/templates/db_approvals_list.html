@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Approbations DB{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Propositions d'écriture DB en attente</h1>
+{% if flash %}
+  <div class="mb-4 {% if '⚠️' in flash %}bg-amber-100 border border-amber-300 text-amber-800{% else %}bg-green-100 border border-green-300 text-green-800{% endif %} px-3 py-2 rounded text-sm" data-testid="flash">
+    {{ flash }}
+  </div>
+{% endif %}
+{% if not approvals %}
+  <p class="text-slate-500" data-testid="empty">Aucune proposition en attente.</p>
+{% else %}
+<table class="w-full bg-white shadow rounded text-sm">
+  <thead class="bg-slate-100 text-left">
+    <tr>
+      <th class="px-3 py-2">ID</th>
+      <th class="px-3 py-2">Procédure</th>
+      <th class="px-3 py-2">Mode</th>
+      <th class="px-3 py-2">Rationale</th>
+      <th class="px-3 py-2">Badges</th>
+      <th class="px-3 py-2">Soumise</th>
+      <th class="px-3 py-2"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in approvals %}
+    <tr class="border-t" data-testid="approval-row-{{ a.submission_id }}">
+      <td class="px-3 py-2 font-mono text-xs">{{ a.short_id }}</td>
+      <td class="px-3 py-2 font-medium">{{ a.procedure }}</td>
+      <td class="px-3 py-2">{{ a.mode }}</td>
+      <td class="px-3 py-2 text-slate-600">{{ a.rationale }}</td>
+      <td class="px-3 py-2 space-x-1">
+        {% if a.touches_money_tables %}<span class="inline-block bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs" data-testid="badge-money">🔴 tables-argent</span>{% endif %}
+        {% if a.llm_unavailable %}<span class="inline-block bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs" data-testid="badge-llm">⚠️ examen renforcé</span>{% endif %}
+        {% if a.break_glass %}<span class="inline-block bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs" data-testid="badge-bg">⚡ break-glass</span>{% endif %}
+      </td>
+      <td class="px-3 py-2 text-xs text-slate-500">{{ a.created_at }}</td>
+      <td class="px-3 py-2">
+        <a href="/admin/ui/db-approvals/{{ a.submission_id }}" class="text-blue-700 hover:underline">Examiner →</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="mt-3 text-xs text-slate-500">total : {{ approvals | length }}</p>
+{% endif %}
+{% endblock %}

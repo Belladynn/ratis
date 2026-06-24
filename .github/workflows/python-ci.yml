@@ -1,0 +1,158 @@
+name: python-ci (reusable)
+
+# Reusable Python service/lib/tooling CI.
+#
+# Single source of truth for how every in-scope `uv` workspace package is
+# linted and tested on GitHub-hosted `ubuntu-latest`. Callers (see ci.yml)
+# invoke it once per package via `uses: ./.github/workflows/python-ci.yml`.
+#
+# Design contract — NO secret database required :
+#   Postgres 16 + Redis 7 are provided as `services:` containers (gated on
+#   the `needs-db` input). The test step wires TEST_DATABASE_URL / DATABASE_URL
+#   / REDIS_URL to those containers on localhost. Every service conftest
+#   hard-sets the rest of its required env (JWT keys generated in-process,
+#   INTERNAL_API_KEY, ADMIN_API_KEY, R2/Stripe placeholders, …) and only reads
+#   TEST_DATABASE_URL from the environment — so a fresh public-repo checkout
+#   needs zero CI secrets to go green (Codecov upload is best-effort).
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: "uv workspace package name (e.g. ratis-auth, ratis_core)."
+        required: true
+        type: string
+      path:
+        description: "Package directory relative to repo root (working dir for lint+tests)."
+        required: true
+        type: string
+      lint-paths:
+        description: "Space-separated paths for `ruff check` (defaults to the package path + ratis_core)."
+        required: false
+        type: string
+        default: ""
+      pytest-args:
+        description: "Extra args appended to the pytest invocation (markers, -k, …)."
+        required: false
+        type: string
+        default: ""
+      test-path:
+        description: "Test target passed to pytest, relative to the package dir."
+        required: false
+        type: string
+        default: "tests/"
+      needs-db:
+        description: "Spin up Postgres 16 + Redis 7 service containers and wire DB/Redis env."
+        required: false
+        type: boolean
+        default: true
+      system-packages:
+        description: "Optional apt packages to install before tests (e.g. PA's OCR runtime libs)."
+        required: false
+        type: string
+        default: ""
+      coverage-flag:
+        description: "Codecov flag for this package's coverage upload."
+        required: true
+        type: string
+      min-coverage:
+        description: "Fail the test step below this total coverage percentage."
+        required: false
+        type: number
+        default: 70
+      coverage-source:
+        description: "Path passed to --cov (defaults to '.', i.e. the package dir)."
+        required: false
+        type: string
+        default: "."
+      timeout-minutes:
+        description: "Per-job timeout."
+        required: false
+        type: number
+        default: 20
+    secrets:
+      CODECOV_TOKEN:
+        description: "Codecov upload token. Optional — tokenless OIDC works on public repos."
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: ruff check
+        run: uvx ruff check ${{ inputs.lint-paths != '' && inputs.lint-paths || format('{0} ratis_core/', inputs.path) }}
+
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    needs: lint
+
+    # Postgres 16 + Redis 7 as ephemeral service containers, reachable on
+    # localhost. GitHub maps the container ports to the runner, so the
+    # `localhost:5432` / `localhost:6379` the conftests expect resolve here.
+    # When `needs-db` is false (pure-unit packages, e.g. agent_mcp) the
+    # `services:` map is empty and no containers are started.
+    services:
+      postgres: ${{ inputs.needs-db && fromJSON('{"image":"postgis/postgis:16-3.4","env":{"POSTGRES_USER":"ratis","POSTGRES_PASSWORD":"ratis","POSTGRES_DB":"ratis_test"},"ports":["5432:5432"],"options":"--health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10"}') || fromJSON('null') }}
+      redis: ${{ inputs.needs-db && fromJSON('{"image":"redis:7-alpine","ports":["6379:6379"],"options":"--health-cmd \"redis-cli ping\" --health-interval 5s --health-timeout 5s --health-retries 10"}') || fromJSON('null') }}
+
+    env:
+      # The conftests resolve their target DB from TEST_DATABASE_URL when set
+      # (resolve_test_database_url rule 1). DATABASE_URL mirrors it for the few
+      # fixtures (alembic spin-up) that read DATABASE_URL directly.
+      TEST_DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test
+      DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install system libraries
+        if: inputs.system-packages != ''
+        # e.g. PA pulls opencv-contrib-python (via paddleocr) which dynamically
+        # links libGL + libglib2 at import time (P11 / KP).
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ${{ inputs.system-packages }}
+
+      - name: Install dependencies (frozen)
+        run: uv sync --package ${{ inputs.package }} --frozen
+
+      - name: Run tests with coverage
+        working-directory: ${{ inputs.path }}
+        # `--with pytest-cov` injects the coverage plugin ephemerally so the
+        # lockfile stays frozen and packages that don't list pytest-cov in
+        # their dev group still get coverage. Branch coverage + a fail-under
+        # floor make the gate a real signal, not decoration.
+        run: >-
+          uv run --package ${{ inputs.package }} --with pytest-cov
+          pytest ${{ inputs.test-path }}
+          --cov=${{ inputs.coverage-source }}
+          --cov-branch
+          --cov-report=xml
+          --cov-fail-under=${{ inputs.min-coverage }}
+          ${{ inputs.pytest-args }}
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
+        with:
+          files: ${{ inputs.path }}/coverage.xml
+          flags: ${{ inputs.coverage-flag }}
+          # Public repo : OIDC tokenless upload works ; a token is used when
+          # present but never required to keep CI green.
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

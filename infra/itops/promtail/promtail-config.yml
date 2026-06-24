@@ -1,0 +1,138 @@
+# =============================================================================
+# Promtail config — Phase B.2 ITOps observability
+# -----------------------------------------------------------------------------
+# Collecte les logs stdout/stderr de TOUS les containers Docker du host,
+# extrait les labels utiles (`service`, `container_name`, `compose_project`,
+# `compose_service`) et les envoie à Loki via /loki/api/v1/push.
+#
+# IMPORTANT macOS Docker Desktop : sur Mac, /var/lib/docker/containers
+# n'existe pas tel quel dans la VM Docker Desktop — Promtail utilisera
+# alors uniquement le Docker socket pour discovery + log streaming.
+# Sous Docker Desktop / Colima, le pattern `docker_sd_configs` reste
+# fonctionnel car Promtail peut lire les logs via l'API Docker au lieu
+# de tailler les fichiers JSON. Si la collection ne marche pas sur Mac,
+# alternative = utiliser le plugin `loki-docker-driver` au niveau Docker
+# daemon (driver-side push). Voir KP-47 candidate dans les NOTES de la PR.
+#
+# Note structured-logging : les services Ratis loggent en plain text via
+# stdlib `logging` (pas de JSONFormatter / structlog). On n'inclut donc PAS
+# de pipeline `json` ici — un upgrade "structured logging JSON" sera
+# nécessaire en pré-Phase-C pour que Loki indexe `level` / `user_id` natifs.
+# =============================================================================
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0  # disable gRPC — pas utilisé en single-host
+  log_level: info
+
+# Position file : Promtail mémorise où il en est dans chaque log file
+# pour ne pas re-pousser les mêmes lignes au restart.
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    # Petits batches → latence basse pour debug, OK avec faible volume.
+    batchwait: 1s
+    batchsize: 102400
+    # Backoff par défaut OK ; on retry indéfiniment puisque Loki est
+    # sur le même réseau Docker et son indispo est typiquement < 1 min.
+
+scrape_configs:
+  # ===========================================================================
+  # Docker service discovery — Promtail interroge le socket Docker pour la
+  # liste des containers running et stream leurs logs via l'API Docker.
+  # Marche sur Linux ET macOS Docker Desktop (l'API Docker abstrait le
+  # filesystem de la VM).
+  # ===========================================================================
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 30s
+        # Stream all running containers by default; relabel filtre/enrichit.
+    relabel_configs:
+      # `container_name` = nom complet du container (sans le slash leading).
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: "container_name"
+      # `compose_project` = projet docker-compose (ex: "itops", "ratis").
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
+        target_label: "compose_project"
+      # `compose_service` = service docker-compose (ex: "loki", "ratis_auth").
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: "compose_service"
+      # `service_name` = label canonique Loki 3.x pour identifier le service.
+      # Loki 3.x renomme automatiquement le label `service` en `service_name`
+      # (convention OpenTelemetry-compat). On écrit directement vers
+      # `service_name` pour éviter la confusion. Priorité des relabel rules =
+      # dernier write win, donc l'ordre est : container_name (fallback) →
+      # compose_service (mieux) → com.ratis.service (custom override).
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: "service_name"
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: "service_name"
+      - source_labels: ["__meta_docker_container_label_com_ratis_service"]
+        target_label: "service_name"
+      # Image (utile pour distinguer prod vs dev versions).
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_image"]
+        target_label: "image"
+      # `stream` = stdout / stderr — utile pour filter les warnings/erreurs.
+      # Promtail le pose automatiquement via la API Docker, on n'a rien à faire ici.
+      # Job constant pour grouper toutes ces séries dans Loki.
+      - target_label: "job"
+        replacement: "docker"
+    # Pipeline : pas de parse JSON pour l'instant (services Ratis = plain text).
+    # On garde juste le label `stream` (stdout/stderr) que Promtail pose
+    # automatiquement via __meta_docker_container_log_stream.
+    pipeline_stages:
+      # Promote __meta_docker_container_log_stream → label `stream`.
+      - labels:
+          stream:
+
+  # ===========================================================================
+  # agent-mcp audit log — host file tail (DA-48)
+  # ---------------------------------------------------------------------------
+  # `agent-mcp` writes one JSONL line per tool dispatch to
+  #   ~/.local/state/ratis-agent-mcp/audit.log
+  # on the Mac mini host (XDG state dir, perms 600). The directory is
+  # bind-mounted read-only into this container at /host-mcp-audit (see
+  # docker-compose.yml — volume `${MCP_AUDIT_LOG_DIR}:/host-mcp-audit:ro`).
+  #
+  # We use `static_configs` (NOT docker_sd) because the audit log is a host
+  # file, not a container stdout stream. `static_configs` tails gracefully :
+  # if the file doesn't exist yet (MCP never invoked), Promtail logs a debug
+  # line and re-checks — no crash, no stall on the rest of the agent.
+  #
+  # Cardinality discipline (Loki ops outage prevention) :
+  #   - PROMOTED to labels (bounded sets) : caller (~3 values: admin/ops),
+  #     tool (~25 names registered in agent-mcp), status (~7 enum values).
+  #   - NOT promoted (high-cardinality / unbounded) : args_redacted, error,
+  #     latency_ms, ts. They stay in the raw JSON log body — still queryable
+  #     via LogQL `| json | error=~".+"` filters when needed.
+  # ===========================================================================
+  - job_name: mcp-audit
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: mcp-audit
+          service_name: ratis-agent-mcp
+          host: mac-mini
+          __path__: /host-mcp-audit/audit.log
+    pipeline_stages:
+      # Parse the JSONL line and extract a small bounded set of fields.
+      # `expressions` keys map JSON paths to extracted-data keys ; only the
+      # subset we re-emit as labels in the next stage.
+      - json:
+          expressions:
+            caller: caller
+            tool: tool
+            status: status
+      # Promote the three bounded fields to labels. `args_redacted`, `error`,
+      # `latency_ms`, `ts` stay in the raw line body — DO NOT label them
+      # (cardinality bomb risk).
+      - labels:
+          caller:
+          tool:
+          status:

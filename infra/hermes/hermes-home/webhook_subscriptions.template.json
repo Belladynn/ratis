@@ -1,0 +1,12 @@
+{
+  "glitchtip-alert": {
+    "description": "GlitchTip → proxy (formats) → Hermes (HMAC) → Telegram",
+    "events": [],
+    "secret": "${WEBHOOK_SECRET}",
+    "prompt": "{text}",
+    "skills": [],
+    "deliver": "telegram",
+    "created_at": "2026-06-01T19:28:18Z",
+    "deliver_only": true
+  }
+}

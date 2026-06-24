@@ -1,0 +1,27 @@
+[project]
+name = "ratis-batch-origins-backfill"
+version = "0.1.0"
+description = "One-shot backfill of products.origins_tags from the OFF API (Phase C-2)"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "psycopg[binary]>=3.0",
+    "ratis-core",
+    "sentry-sdk>=2.58.0",
+    "sqlalchemy>=2.0",
+    "tenacity>=8.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "python-dotenv>=1.0",
+]
+
+[tool.uv.sources]
+ratis-core = { workspace = true }
+
+[tool.pytest.ini_options]
+# Cross-OS safe — see SA_DEV.md § "tests pytest local autorisé".
+timeout = 60
+timeout_method = "thread"

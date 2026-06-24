@@ -1,0 +1,174 @@
+# ============================================================
+# SECRETS — ne jamais commiter
+# ============================================================
+**/.env
+**/.env.local
+**/.env.production
+**/.env.staging
+**/.env.prod
+**/secrets/
+# Private keys (JWT RS256 pairs, SSH, TLS) — never commit.
+**/*.pem
+# Exceptions : agent-mcp Python package named `secrets` (module 10) is code, not credentials.
+!tools/agent-mcp/src/agent_mcp/secrets/
+!tools/agent-mcp/tests/secrets/
+
+# ============================================================
+# TERRAFORM / IaC — state contient des secrets en clair, jamais commiter
+# ============================================================
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform/
+
+# ============================================================
+# PYTHON
+# ============================================================
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/.venv/
+**/venv/
+**/*.egg-info/
+**/dist/
+**/build/
+**/.ruff_cache/
+**/.pytest_cache/
+**/.mypy_cache/
+
+# ============================================================
+# UV
+# ============================================================
+**/.uv/
+
+# ============================================================
+# BASE DE DONNÉES
+# ============================================================
+db/schema_lite_*.sql.old
+
+# ============================================================
+# DÉCISIONS EN COURS — non commité intentionnellement
+# ============================================================
+DECISIONS_PENDING.md
+SESSION_LOG.md
+docs/ops/PROD_CHECKLIST.md
+db/schema.sql
+
+# ============================================================
+# OBSIDIAN (doc vault local — settings, canvas vides)
+# ============================================================
+.obsidian/
+Sans titre*.canvas
+Sans titre*.base
+
+# ============================================================
+# CLAUDE CODE
+# ============================================================
+.claude/*
+# Un-ignore shared project settings (team-wide hooks, permissions, plugins)
+!.claude/settings.json
+# Un-ignore project-local skills (version-controlled, team-wide tooling)
+!.claude/skills
+!.claude/skills/**
+# Un-ignore team-wide session-context bridge hook (paired with `scripts/hooks/inject-session-context.py`)
+!.claude/hooks
+!.claude/hooks/**
+# But re-ignore the auto-generated candidate skills produced by the
+# claude-code-postmortem Hermes skill — these are LLM proposals that need human
+# review before being promoted to real `.claude/skills/<name>/SKILL.md` entries.
+.claude/skill-candidates/
+# Un-ignore the explicit archive bucket — rejected skills are kept with their
+# rejection reason for audit/learning purposes (and to prevent the postmortem
+# from re-proposing them in future sessions). Workflow:
+#   mv .claude/skill-candidates/X .claude/skill-archive/X  (then document the why)
+!.claude/skill-archive
+!.claude/skill-archive/**
+# Audit log for /admin/ui/skills mutations (promote/archive/drop). Append-only
+# JSONL with operator handles + timestamps — local/prod only, never committed.
+.claude/skill-review-audit.jsonl
+# Nested .claude/ anywhere else = agent cruft (memory stores, worktrees, etc.) — always ignore
+webservices/**/.claude/
+ratis_client/**/.claude/
+ratis_core/**/.claude/
+batch/**/.claude/
+
+# ============================================================
+# DOCKER
+# ============================================================
+**/docker-compose.override.yml
+
+# ============================================================
+# NODE / EXPO (ratis_client)
+# ============================================================
+**/node_modules/
+**/.expo/
+**/dist/
+**/.next/
+**/web-build/
+**/*.tsbuildinfo
+**/coverage/
+
+# ============================================================
+# OS
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# IDE
+# ============================================================
+.vscode/
+.idea/
+**/*.swp
+**/*.swo
+
+# ============================================================
+# SELF-HOSTED RUNNER
+# ============================================================
+actions-runner/
+# ============================================================
+# WORKTREES
+# ============================================================
+.worktrees/
+
+# ============================================================
+# DOCS EXTERNES / SCRATCHPAD LOCAL (jamais commité)
+# ============================================================
+gitignored/
+
+# ============================================================
+# OSM PBF DATA DUMPS — too large for git (multi-GB)
+# ============================================================
+batch/ratis_batch_osm_sync/data/*.pbf
+batch/ratis_batch_osm_sync/data/*.osm.pbf
+batch/ratis_batch_osm_sync/data/state.txt
+batch/ratis_batch_osm_sync/data/.osmosis-wd/
+CLAUDE.old.md
+
+# ============================================================
+# scan_debug_viewer outputs — local HTML reports per scan
+# ============================================================
+.scan-debug-*.html
+
+# ============================================================
+# Transient debug artifacts (worker logs, image extracts, caddy logs)
+# Generated by scan-debug.sh + ad-hoc Python helpers — never commit.
+# ============================================================
+.tmp-*
+
+# drive-capture — données captées + config locale (jamais dans le repo)
+tools/drive-capture/captures/
+tools/drive-capture/domains.txt
+# drive-capture parser — base SQLite + NDJSON normalisé (données, pas le repo)
+tools/drive-capture/**/drive_prices.db
+tools/drive-capture/**/*.normalized.ndjson
+
+# docs-mcp vector index (phase D agentic-docs) — regenerated on demand by
+# scripts/build-docs-vector.py or the docs_reindex MCP tool. Local artefact.
+.docs-vector-index.db
+.docs-vector-index.db-journal
+.docs-vector-index.db-wal
+.docs-vector-index.db-shm
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

@@ -1,0 +1,105 @@
+# Codecov configuration — https://docs.codecov.com/docs/codecovyml-reference
+#
+# Coverage is uploaded per-service from CI with a `flags:` label (see
+# .github/workflows/ratis_*.yml). Flags in use:
+#   ratis_auth · ratis_rewards · ratis_product_analyser ·
+#   ratis_list_optimiser · ratis_notifier · ratis_client
+# (ratis_core has no own flag — it is exercised transitively, chiefly through
+#  the ratis_auth / ratis_rewards money paths, so those flags carry its bar.)
+#
+# Strategy: project status uses `target: auto` (compare against the PR base) so
+# the gate means "don't regress coverage", which is green-by-construction on the
+# current baseline and tightens automatically as coverage rises. Money/auth
+# flags get a near-zero regression tolerance; OCR glue gets a looser one.
+# Patch status enforces that NEW lines are covered, strictest on money/auth.
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...90"
+
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%        # tolerate ≤1% project-wide dip (flaky-line noise)
+        if_ci_failed: error
+
+      # --- money / auth / core paths : near-zero regression tolerance --------
+      auth:
+        flags: [ratis_auth]
+        target: auto
+        threshold: 0.5%
+      rewards:
+        flags: [ratis_rewards]
+        target: auto
+        threshold: 0.5%
+
+      # --- standard services -------------------------------------------------
+      list_optimiser:
+        flags: [ratis_list_optimiser]
+        target: auto
+        threshold: 1%
+      notifier:
+        flags: [ratis_notifier]
+        target: auto
+        threshold: 1%
+
+      # --- OCR glue : looser (paddleocr/cv2 branches hard to unit-cover) ------
+      product_analyser:
+        flags: [ratis_product_analyser]
+        target: auto
+        threshold: 3%
+
+      # --- mobile client -----------------------------------------------------
+      client:
+        flags: [ratis_client]
+        target: auto
+        threshold: 2%
+
+    patch:
+      default:
+        target: 80%          # new lines must be ≥80% covered
+        threshold: 5%
+      # New money/auth code is held to a higher bar than the rest.
+      auth:
+        flags: [ratis_auth]
+        target: 90%
+      rewards:
+        flags: [ratis_rewards]
+        target: 90%
+      # OCR glue patches: lower patch bar (the new lines are often I/O-bound).
+      product_analyser:
+        flags: [ratis_product_analyser]
+        target: 70%
+
+# Per-flag carryforward: a flag's coverage persists across commits that don't
+# re-upload it (each service workflow only runs on its own path changes).
+flag_management:
+  default_rules:
+    carryforward: true
+
+flags:
+  ratis_auth:
+    paths: [webservices/ratis_auth]
+  ratis_rewards:
+    paths: [webservices/ratis_rewards]
+  ratis_product_analyser:
+    paths: [webservices/ratis_product_analyser]
+  ratis_list_optimiser:
+    paths: [webservices/ratis_list_optimiser]
+  ratis_notifier:
+    paths: [webservices/ratis_notifier]
+  ratis_client:
+    paths: [ratis_client]
+
+comment:
+  layout: "header, diff, flags, components"
+  require_changes: true
+
+# Migrations and tests are not product code — keep them out of the ratio.
+ignore:
+  - "alembic/**"
+  - "**/tests/**"
+  - "**/conftest.py"
+  - "**/__init__.py"

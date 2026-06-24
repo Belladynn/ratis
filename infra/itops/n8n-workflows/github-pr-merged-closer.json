@@ -1,0 +1,390 @@
+{
+  "name": "github-pr-merged-closer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-pr-merged",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "5545c9d5-4421-4316-b26e-16b9d5a59787",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1400,
+        0
+      ],
+      "webhookId": "82febecf-ec0d-4d8f-9293-b4482a0e1fd4"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// HMAC-SHA256 verification of GitHub webhook signature.\n// Uses Webhook node options.rawBody=true → raw bytes at item.binary.data.\nconst crypto = require(\"crypto\");\n\nconst secret = $env.N8N_GITHUB_WEBHOOK_SECRET;\nif (!secret) throw new Error(\"N8N_GITHUB_WEBHOOK_SECRET env not set\");\n\nconst item = $input.first();\nconst itemJson = item.json || {};\nconst headers = itemJson.headers || {};\n\nconst presentedHeader = headers[\"x-hub-signature-256\"] || headers[\"X-Hub-Signature-256\"];\nif (!presentedHeader) return { json: { _hmac_status: \"missing_signature\", _statusCode: 401 } };\nif (!presentedHeader.startsWith(\"sha256=\")) return { json: { _hmac_status: \"invalid_format\", _statusCode: 401 } };\n\nconst binaryData = item.binary && item.binary.data;\nif (!binaryData || !binaryData.data) {\n  return { json: { _hmac_status: \"raw_body_unavailable_binary\", _statusCode: 500 } };\n}\n\nconst rawBuf = Buffer.from(binaryData.data, \"base64\");\nconst presented = presentedHeader.slice(\"sha256=\".length);\nconst expected = crypto.createHmac(\"sha256\", secret).update(rawBuf).digest(\"hex\");\n\nconst presentedBuf = Buffer.from(presented, \"hex\");\nconst expectedBuf = Buffer.from(expected, \"hex\");\nif (presentedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(presentedBuf, expectedBuf)) {\n  return { json: { _hmac_status: \"invalid_signature\", _statusCode: 401 } };\n}\n\nconst bodyObj = itemJson.body || {};\nreturn { json: { ...bodyObj, _hmac_status: \"ok\" } };"
+      },
+      "id": "f4d7227b-85e8-4562-9cf2-4edebc192e64",
+      "name": "HMAC Verification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "507b804f-5fe8-41e5-9ff5-80df415c3243",
+              "leftValue": "={{ $json._hmac_status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b698388f-c68e-4419-8fc6-e42ed9c23025",
+      "name": "IF HMAC OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": "={{ $json._statusCode || 401 }}",
+        "responseBody": "={{ JSON.stringify({ status: 'rejected', reason: $json._hmac_status }) }}",
+        "options": {}
+      },
+      "id": "289e18ee-72cc-4311-a576-7306de028ecb",
+      "name": "Respond HMAC Failure",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "3a107018-05b2-4a8b-99ab-3b3d87a8a0b2",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "closed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "ce029c66-91e6-450d-841b-98724f3c7ff7",
+              "leftValue": "={{ $json.pull_request.merged }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4acb506f-3e76-429a-9105-1761cd34428e",
+      "name": "IF Merged",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ JSON.stringify({ status: 'skipped', reason: 'not a merge' }) }}",
+        "options": {}
+      },
+      "id": "8235e8bf-aad5-4f07-8b0f-344e7b6d8373",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Parse the PR body for closing references to GlitchTip issues.\n// Format expected in PR body : `glitchtip-issue:<id>` where <id> is the\n// numeric issue id surfaced by GlitchTip (PATCH /api/0/issues/<id>/).\nconst body = $json.pull_request?.body || '';\nconst re = /glitchtip-issue:(\\d+)/gi;\nconst matches = [...body.matchAll(re)].map(m => m[1]);\n\nif (matches.length === 0) {\n  return [{\n    json: {\n      _no_match: true,\n      _pr_number: $json.pull_request.number,\n      _pr_url: $json.pull_request.html_url,\n      _pr_title: $json.pull_request.title,\n    }\n  }];\n}\n\nreturn matches.map(issueId => ({\n  json: {\n    _no_match: false,\n    _glitchtip_issue_id: issueId,\n    _pr_number: $json.pull_request.number,\n    _pr_url: $json.pull_request.html_url,\n    _pr_title: $json.pull_request.title,\n  }\n}));\n"
+      },
+      "id": "6069841d-58b9-4215-8e5e-97f79fe5c0a7",
+      "name": "Parse PR Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "7b195d95-f934-4162-9302-9b790f35084a",
+              "leftValue": "={{ $json._no_match }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3fc29990-d06f-40dd-a73c-a820a557a3dd",
+      "name": "IF Match Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ JSON.stringify({ status: 'no_glitchtip_refs' }) }}",
+        "options": {}
+      },
+      "id": "5fbbac6d-334c-4822-a547-9bff7d50b019",
+      "name": "Respond No Refs",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://glitchtip-web:8000/api/0/issues/{{ $json._glitchtip_issue_id }}/",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.GLITCHTIP_API_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'resolved' }) }}",
+        "options": {
+          "response": { "response": { "neverError": true, "responseFormat": "json" } }
+        }
+      },
+      "id": "1eaa8eae-5703-4ca4-b666-4e0570562b36",
+      "name": "GlitchTip Resolve Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        -300
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Emit a single JSONL line of metrics for Promtail/Loki ingestion.\n// Latency = wall-clock between workflow start (n8n's $execution.startedAt) and now.\nconst closed_count = $input.all().filter(i => !i.json._no_match).length;\n\nlet latency_ms = null;\ntry {\n  const startedAt = (typeof $execution !== 'undefined' && $execution?.startedAt) ? $execution.startedAt : null;\n  if (startedAt) {\n    const startMs = new Date(startedAt).getTime();\n    if (!Number.isNaN(startMs)) {\n      latency_ms = Date.now() - startMs;\n    }\n  }\n} catch (_) {\n  // $execution unavailable in this n8n version — leave latency_ms null.\n}\n\nconsole.log(JSON.stringify({\n  level: 'info',\n  ts: new Date().toISOString(),\n  service: 'n8n',\n  workflow: 'github-pr-merged-closer',\n  event: 'pr_merged_processed',\n  pr_number: $json._pr_number,\n  closed_count: closed_count,\n  latency_ms: latency_ms,\n}));\n\nreturn $input.all();\n"
+      },
+      "id": "12a54790-a87f-4239-838f-e69d5cef77d8",
+      "name": "Structured Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ JSON.stringify({ status: 'ok', pr_number: $json._pr_number }) }}",
+        "options": {}
+      },
+      "id": "4d9b1888-d4d9-449c-88cc-2fdb0d8916b9",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HMAC Verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMAC Verification": {
+      "main": [
+        [
+          {
+            "node": "IF HMAC OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF HMAC OK": {
+      "main": [
+        [
+          {
+            "node": "IF Merged",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond HMAC Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Merged": {
+      "main": [
+        [
+          {
+            "node": "Parse PR Body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse PR Body": {
+      "main": [
+        [
+          {
+            "node": "IF Match Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Match Found": {
+      "main": [
+        [
+          {
+            "node": "GlitchTip Resolve Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond No Refs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GlitchTip Resolve Issue": {
+      "main": [
+        [
+          {
+            "node": "Structured Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Log": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bd5708c6-09ca-4489-a7f3-f74d2e52027e",
+  "id": "github-pr-merged-closer-v0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [],
+  "pinData": {}
+}

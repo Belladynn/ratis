@@ -1,0 +1,11 @@
+{
+  "exceptions": [
+    {
+      "rule": "R-10",
+      "file": "webservices/ratis_product_analyser/celery_app.py",
+      "reason": "Celery exige l'URL broker a l'instanciation de l'objet Celery() — lecture module-level incontournable sans refactorer l'architecture Celery",
+      "approved_by": "utilisateur",
+      "date": "2026-04-10"
+    }
+  ]
+}

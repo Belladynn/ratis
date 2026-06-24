@@ -1,0 +1,27 @@
+{
+  "store_name": "Le V de la Vérité",
+  "store_status_hint": "unknown",
+  "purchased_at": "2026-04-19",
+  "items": [
+    {"scanned_name": "GIRASOLI FROM CHEV", "price_cents": 270, "quantity": 1.0},
+    {"scanned_name": "PIZZA MARGHERITA", "price_cents": 890, "quantity": 1.0}
+  ],
+  "total_cents": 1107,
+  "tva_cents": 58,
+  "rejections": [
+    "19/04/202620:2723413034469597",
+    "Veriteaemporter",
+    "Vente a emporter",
+    "Version",
+    "TOTAL",
+    "RESTE A PAYER",
+    "ESPECES",
+    "CARTE TRD CB",
+    "TVA",
+    "MONTANT HT",
+    "MONTANT TTC",
+    "5,50%",
+    "Merci de votre visite",
+    "À bientôt !"
+  ]
+}

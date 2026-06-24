@@ -1,0 +1,155 @@
+name: batch-sirene-sync
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "batch/ratis_batch_sirene_sync/**"
+      - "batch/_shared/**"
+      - "ratis_core/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/batch_sirene_sync.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (default true for safety)"
+        type: boolean
+        default: true
+      full:
+        description: "Force re-download of bulk SIRENE ZIP"
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - "batch/ratis_batch_sirene_sync/**"
+      - "batch/_shared/**"
+  # schedule:
+  #   - cron: "0 4 1 * *"    # 1st of every month 04:00 UTC — disabled (public repo has no prod DB/secrets; trigger manually via workflow_dispatch)
+
+# Serialize runs per ref so a slow scheduled batch never overlaps the next
+# tick. cancel-in-progress=false -> the new run queues behind the running one.
+concurrency:
+  group: batch-sirene-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uvx ruff check batch/ratis_batch_sirene_sync/
+
+  sast:
+    name: SAST (bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - run: uvx bandit[toml] -r batch/ratis_batch_sirene_sync/ -ll -q -c pyproject.toml
+
+  test-sirene-sync:
+    name: Tests — ratis_batch_sirene_sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, sast]
+    if: github.event_name != 'schedule'
+    # Postgres 16 + PostGIS as an ephemeral service container, reachable on
+    # localhost (GitHub maps the container port to the runner). The conftest
+    # runs `CREATE EXTENSION postgis`, so a PostGIS image is required.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: ratis
+          POSTGRES_PASSWORD: ratis
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Create test database
+        # Create via psycopg directly — no psql/createdb shell-out needed.
+        run: |
+          uv run python - <<'PY'
+          import psycopg
+          conn = psycopg.connect(
+              "postgresql://ratis:ratis@localhost:5432/postgres",
+              autocommit=True,
+          )
+          conn.execute("DROP DATABASE IF EXISTS ratis_test_sirene_sync")
+          conn.execute("CREATE DATABASE ratis_test_sirene_sync")
+          conn.close()
+          PY
+      - name: Install dependencies
+        run: uv sync --all-groups --all-packages
+      - name: Run tests (ratis_batch_sirene_sync)
+        run: uv run pytest batch/ratis_batch_sirene_sync/tests/ -q
+        env:
+          PYTHONPATH: batch/ratis_batch_sirene_sync
+          DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_sirene_sync
+          TEST_DATABASE_URL: postgresql+psycopg://ratis:ratis@localhost:5432/ratis_test_sirene_sync
+
+  run-prod-sync:
+    name: Monthly SIRENE prod sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Record step start (for sentinel duration_s)
+        run: echo "STEP_START=$(date -u +%s)" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: uv sync --all-groups --all-packages
+      - name: Run SIRENE sync
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ "${{ github.event.inputs.full }}" = "true" ]; then
+            ARGS="$ARGS --full"
+          fi
+          echo "Running: sirene_sync.py $ARGS"
+          uv run python batch/ratis_batch_sirene_sync/sirene_sync.py $ARGS
+        env:
+          PYTHONPATH: batch/ratis_batch_sirene_sync
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SIRENE_BULK_URL: ${{ secrets.SIRENE_BULK_URL }}
+          GEOPLATEFORME_GEOCODE_URL: ${{ secrets.GEOPLATEFORME_GEOCODE_URL }}
+          SIRENE_BULK_CACHE_DIR: /var/cache/ratis/sirene
+      - name: Report outcome to batch-sentinel
+        if: always()
+        continue-on-error: true
+        uses: ./.github/actions/report-batch-outcome
+        with:
+          webhook_url: ${{ secrets.BATCH_SENTINEL_WEBHOOK_URL }}
+          secret: ${{ secrets.BATCH_SENTINEL_WEBHOOK_SECRET }}
+          conclusion: ${{ job.status }}

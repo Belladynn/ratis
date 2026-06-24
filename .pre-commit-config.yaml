@@ -1,0 +1,49 @@
+# Pre-commit hooks for the Ratis Python workspace.
+#
+# Install once:   uvx pre-commit install
+# Run on all:     uvx pre-commit run --all-files
+#
+# The ruff hook rev is pinned to the SAME version as the project's ruff
+# (pyproject [dependency-groups] dev → ruff 0.15.15) so local `uv run ruff` and
+# the pre-commit hook never disagree on fixes/format.
+minimum_pre_commit_version: "3.5.0"
+
+repos:
+  # --- Ruff : lint (with autofix) + format -------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.15
+    hooks:
+      - id: ruff
+        name: ruff (lint + autofix)
+        args: [--fix]
+      - id: ruff-format
+        name: ruff (format)
+
+  # --- uv : keep uv.lock in sync with pyproject --------------------------
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.24
+    hooks:
+      - id: uv-lock
+        name: uv-lock (lockfile up to date)
+
+  # --- gitleaks : block secrets from entering the tree -------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        name: gitleaks (secret scan)
+
+  # --- mypy : permissive static-type gate (scoped via scripts/run-mypy.sh)
+  # Local hook (not the mirror) so it runs through `uv run --group typecheck`
+  # and reuses the workspace env + [tool.mypy] config (incl. the ratchet list).
+  # pass_filenames: false — the wrapper decides the scope (per-package roots);
+  # feeding it changed filenames would break the uv-workspace module mapping.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (typecheck — scoped)
+        entry: uv run --group typecheck ./scripts/run-mypy.sh
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
