@@ -33,9 +33,10 @@ repos:
       - id: gitleaks
         name: gitleaks (secret scan)
 
-  # --- mypy : permissive static-type gate (scoped via scripts/run-mypy.sh)
+  # --- mypy : strict static-type gate (scoped via scripts/run-mypy.sh) -------
   # Local hook (not the mirror) so it runs through `uv run --group typecheck`
-  # and reuses the workspace env + [tool.mypy] config (incl. the ratchet list).
+  # and reuses the workspace env + [tool.mypy] config (no disabled error codes).
+  # Same gate runs in CI (ci.yml → Typecheck job) so it can't rot locally-only.
   # pass_filenames: false — the wrapper decides the scope (per-package roots);
   # feeding it changed filenames would break the uv-workspace module mapping.
   - repo: local

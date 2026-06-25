@@ -44,6 +44,7 @@ jobs:
       agent_mcp: ${{ steps.filter.outputs.agent_mcp }}
       migrations: ${{ steps.filter.outputs.migrations }}
       client: ${{ steps.filter.outputs.client }}
+      python: ${{ steps.filter.outputs.python }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - id: filter
@@ -92,6 +93,14 @@ jobs:
             client:
               - "ratis_client/**"
               - ".github/workflows/ci.yml"
+            python:
+              - "ratis_core/**"
+              - "webservices/**"
+              - "tools/agent-mcp/**"
+              - "pyproject.toml"
+              - "uv.lock"
+              - ".github/workflows/ci.yml"
+              - ".github/workflows/python-ci.yml"
 
   # ---------------------------------------------------------------------------
   # Python service / lib / tooling suites (reusable workflow).
@@ -334,6 +343,34 @@ jobs:
           fail_ci_if_error: false
 
   # ---------------------------------------------------------------------------
+  # Strict mypy gate — the typed surface (5 services + ratis_core + agent-mcp)
+  # checked with NO disable_error_code (see [tool.mypy]). Runs whenever any
+  # Python changed; wired into ci-passed so a type regression blocks merge, at
+  # parity with the ruff lint gate. Mirrors `scripts/run-mypy.sh` exactly.
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: Typecheck (mypy — strict)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install workspace + type stubs (frozen)
+        # mypy resolves real types for fastapi / SQLAlchemy / pydantic / … . The
+        # no-stub C-extensions (paddle, cv2, pyzbar, celery) are ignored via the
+        # [tool.mypy] overrides, so they need no importable system libs here.
+        run: uv sync --all-packages --group typecheck --frozen
+      - name: mypy (no disable_error_code)
+        run: uv run --group typecheck ./scripts/run-mypy.sh
+
+  # ---------------------------------------------------------------------------
   # Aggregator — the SINGLE required check. Fails if ANY needed job failed or
   # was cancelled. Skipped jobs (path-filtered out) are allowed, so unchanged
   # services don't block, but a real failure can't slip through by omission.
@@ -352,6 +389,7 @@ jobs:
       - agent_mcp
       - migrations
       - client
+      - typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
