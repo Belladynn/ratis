@@ -85,7 +85,7 @@ Prepared progressively after the alpha, so the cutover is mechanical:
 - **AWS CI/CD pipeline** — GitHub Actions that push images to ECR and update ECS task
   definitions, added once the self-hosted stage is stable and triggerable on demand.
 - **Infrastructure as code** — Terraform for the full target topology, initiated in
-  `infra/aws/` (marked "not applied in prod") once there are 500+ active users.
+  `infra/aws/` (applied ephemerally to validate, then torn down — not kept in prod) until 500+ active users justify the prod-apply.
 - **DB migration plan** — `pg_dump` export → RDS import, tested end-to-end against a
   staging RDS *before* saturation. Estimated downtime ~15–30 min for a DB under ~50 GB.
 - **OCR worker cluster plan** — keep the `product_analyser` API thin, push jobs to Redis,

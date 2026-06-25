@@ -1,6 +1,6 @@
 # ADR-0010: AWS target as Terraform IaC ahead of need
 
-**Status:** Accepted (POC) — committed, validated, deliberately not applied in prod
+**Status:** Accepted (POC) — committed; applied ephemerally to validate the topology, then torn down; deliberately not kept running in prod
 
 ## Context and Problem Statement
 
@@ -15,14 +15,14 @@ The migration path (ADR-0009) requires AWS to be "ready before saturation" so th
 
 ## Considered Options
 
-- **Terraform stack under `infra/aws`, committed but not applied**, mirroring the compose topology on managed primitives.
+- **Terraform stack under `infra/aws`, applied ephemerally to validate then torn down (not kept in prod)**, mirroring the compose topology on managed primitives.
 - **AWS CDK** instead of Terraform.
 - **Lock-in managed services (DynamoDB/SQS/Lambda).**
 - **Defer all AWS work until saturation actually hits.**
 
 ## Decision Outcome
 
-Chosen: author a Terraform stack under `infra/aws` (region `eu-west-3`, profile `claude-agent`) provisioning: an ECS cluster with Service Connect (Cloud Map private namespace `ratis.local`); the 5 services as Fargate tasks (auth/product/list/rewards public behind an ALB, notifier internal); a single RDS Postgres 16 (`db.t3.micro`); an ElastiCache Redis 7.1 (`cache.t3.micro`); and Secrets Manager entries for `INTERNAL_API_KEY` / `DATABASE_URL` / `REDIS_URL`. A reusable Terraform module (`modules/service`) parameterizes each service. Kept as committed-but-not-applied IaC, with "not applied in prod" comments, until 500+ active users.
+Chosen: author a Terraform stack under `infra/aws` (region `eu-west-3`, profile `claude-agent`) provisioning: an ECS cluster with Service Connect (Cloud Map private namespace `ratis.local`); the 5 services as Fargate tasks (auth/product/list/rewards public behind an ALB, notifier internal); a single RDS Postgres 16 (`db.t3.micro`); an ElastiCache Redis 7.1 (`cache.t3.micro`); and Secrets Manager entries for `INTERNAL_API_KEY` / `DATABASE_URL` / `REDIS_URL`. A reusable Terraform module (`modules/service`) parameterizes each service. The stack was applied ephemerally to validate the topology (the full thing stood up), then torn down to €0; it is kept out of continuous prod — with "not applied in prod" comments — until 500+ active users justify the spend.
 
 **Rejected:** AWS CDK (the listed alternative, not chosen); lock-in managed services (DynamoDB/SQS/Lambda explicitly excluded); deferring all AWS work (would make the cutover slow and risky). S3 vs keeping Cloudflare R2 left open ("S3 or keep R2").
 
