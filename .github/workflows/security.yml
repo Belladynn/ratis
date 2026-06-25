@@ -103,6 +103,22 @@ jobs:
           fi
           echo "OK — no HTTPException in service layers."
 
+      - name: No float money conversion (int-cents rule)
+        # Enforces the "Integer cents" rule (ADR-0003): every monetary amount is
+        # an integer number of cents, converted through Decimal — never
+        # `float(...) * 100`, whose binary drift silently corrupts cents. Scope =
+        # product code (services / batch / core / drive-capture); tests excluded.
+        # The correct form `int(round(Decimal(str(v)) * 100))` carries no `float(`
+        # token, so it never matches; `* 1000` (radius) and `/ total * 100.0`
+        # (percentages) don't either. See TEST evidence in the PR that added this.
+        run: |
+          if rg --type py -n 'float\([^)]*\)\s*\*\s*100\b' -g '!**/tests/**' -g '!**/conftest.py' webservices/ batch/ ratis_core/ tools/drive-capture/; then
+            echo "ERROR: monetary amount converted via float — amounts are integer cents."
+            echo "Use int(round(Decimal(str(v)) * 100)), never float(...) * 100 (see ADR-0003)."
+            exit 1
+          fi
+          echo "OK — no float-based money conversion."
+
   compose_env_passthrough:
     name: docker-compose.prod.yml ↔ require_env drift
     runs-on: ubuntu-latest
