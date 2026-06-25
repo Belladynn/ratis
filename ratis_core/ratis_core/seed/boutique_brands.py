@@ -30,6 +30,8 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ratis_core.database import affected_rows
+
 _log = logging.getLogger(__name__)
 
 
@@ -97,6 +99,6 @@ def seed_boutique_brands(db: Session) -> int:
                 "logo": brand["logo_url"] or None,
             },
         )
-        inserted += result.rowcount or 0
+        inserted += affected_rows(result)
     _log.info("seed_boutique_brands: %d new brand rows inserted", inserted)
     return inserted

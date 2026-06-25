@@ -11,6 +11,7 @@ import json
 import uuid
 from typing import Any
 
+from ratis_core.database import affected_rows
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -235,7 +236,7 @@ def debit_cab(
         text("UPDATE user_cab_balance SET balance = balance - :amount WHERE user_id = :uid AND balance >= :amount"),
         {"amount": amount, "uid": user_id},
     )
-    if result.rowcount == 0:
+    if affected_rows(result) == 0:
         raise InsufficientBalance("insufficient CAB balance")
     tx_id = tx_id or uuid.uuid4()
     db.execute(
@@ -295,7 +296,7 @@ def admin_adjust_cab(
             text("UPDATE user_cab_balance SET balance = balance + :amount WHERE user_id = :uid"),
             {"amount": amount, "uid": user_id},
         )
-        if result.rowcount == 0:
+        if affected_rows(result) == 0:
             raise LookupError(f"user_cab_balance row not found for {user_id}")
     else:  # debit
         # Atomic check : balance >= amount via WHERE clause (R09).
@@ -303,7 +304,7 @@ def admin_adjust_cab(
             text("UPDATE user_cab_balance SET balance = balance - :amount WHERE user_id = :uid AND balance >= :amount"),
             {"amount": amount, "uid": user_id},
         )
-        if result.rowcount == 0:
+        if affected_rows(result) == 0:
             # Distinguish "user missing" from "insufficient balance".
             exists = db.execute(
                 text("SELECT 1 FROM user_cab_balance WHERE user_id = :uid"),

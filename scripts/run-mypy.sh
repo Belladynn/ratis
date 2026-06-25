@@ -9,7 +9,7 @@
 #
 # Scope = the 5 FastAPI services + ratis_core + tools/agent-mcp. Migrations
 # (alembic/) and tests are excluded via [tool.mypy] in pyproject.toml. Config
-# (incl. the RATCHET LIST of temporarily-disabled error codes) lives there too.
+# lives there too — a strict gate with no disabled error codes.
 #
 # Usage :
 #   ./scripts/run-mypy.sh            # check the whole scope, non-zero on any error

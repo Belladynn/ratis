@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from ratis_core.database import affected_rows
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -85,6 +86,10 @@ def insert_gift_card_order(
         text("SELECT id FROM gift_card_orders WHERE source_type = :stype AND source_ref_id = :sref"),
         {"stype": source_type, "sref": source_ref_id},
     ).scalar()
+    # The SELECT runs in the same transaction right after the idempotent
+    # INSERT ... ON CONFLICT DO NOTHING, so the row always exists (freshly
+    # inserted, or pre-existing on conflict) — scalar() is never None here.
+    assert row is not None  # post-condition of the idempotent insert above
     return row
 
 
@@ -158,7 +163,7 @@ def update_order_issued(
         ),
         {"poid": provider_order_id, "code": code, "oid": order_id},
     )
-    return result.rowcount == 1
+    return affected_rows(result) == 1
 
 
 def update_order_failed(db: Session, order_id: uuid.UUID) -> bool:
@@ -172,7 +177,7 @@ def update_order_failed(db: Session, order_id: uuid.UUID) -> bool:
         text("UPDATE gift_card_orders SET status = 'failed', failed_at = now() WHERE id = :oid AND status = 'pending'"),
         {"oid": order_id},
     )
-    return result.rowcount == 1
+    return affected_rows(result) == 1
 
 
 def _row_to_dict(row: Any) -> dict[str, Any]:

@@ -204,5 +204,8 @@ def award_xp(
         ),
         {"uid": user_id, "amount": amount, "base": level_base},
     ).first()
+    # INSERT ... ON CONFLICT DO UPDATE always affects exactly one row, and
+    # RETURNING yields that row — .first() is never None here.
+    assert new_level_row is not None  # post-condition of the upsert + RETURNING
     new_level = new_level_row.level
     return {"old_level": old_level, "new_level": new_level, "leveled_up": new_level > old_level}

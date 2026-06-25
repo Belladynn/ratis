@@ -97,7 +97,7 @@ def update_label_scan_result(
     scan: Scan,
     *,
     scanned_name: str,
-    price: Decimal,
+    price: int,
     product_ean: str | None,
     match_method: str | None,
     status: str,

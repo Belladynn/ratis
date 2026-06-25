@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from ratis_core.database import affected_rows
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -184,7 +185,7 @@ def debit_cashback_balance(db: Session, user_id: uuid.UUID, amount: int) -> None
         ),
         {"uid": user_id, "amount": amount},
     )
-    if result.rowcount == 0:
+    if affected_rows(result) == 0:
         raise InsufficientCashbackBalance("insufficient cashback balance")
 
 
@@ -313,7 +314,7 @@ def mark_boost_applied(db: Session, credit_tx_id: uuid.UUID) -> bool:
         text("UPDATE cashback_transactions SET boost_applied = true WHERE id = :tx_id AND boost_applied = false"),
         {"tx_id": credit_tx_id},
     )
-    return result.rowcount == 1
+    return affected_rows(result) == 1
 
 
 def update_cashback_tx_status(db: Session, tx_id: uuid.UUID, new_status: str) -> None:
@@ -413,7 +414,7 @@ def set_withdrawal_provider_ref(
         ),
         {"ref": payment_provider_ref, "wid": withdrawal_id},
     )
-    if result.rowcount == 0:
+    if affected_rows(result) == 0:
         raise WithdrawalNotFound(f"cashback_withdrawals {withdrawal_id} not found")
 
 
@@ -585,7 +586,7 @@ def mark_withdrawal_processed(
         ),
         {"id": withdrawal_id, "ref": payment_provider_ref},
     )
-    if result.rowcount == 0:
+    if affected_rows(result) == 0:
         raise WithdrawalNotFound(f"cashback_withdrawals {withdrawal_id} not found")
 
 
@@ -599,5 +600,5 @@ def mark_withdrawal_failed(
         text("UPDATE cashback_withdrawals SET status = 'failed', failure_reason = :reason WHERE id = :id"),
         {"id": withdrawal_id, "reason": failure_reason},
     )
-    if result.rowcount == 0:
+    if affected_rows(result) == 0:
         raise WithdrawalNotFound(f"cashback_withdrawals {withdrawal_id} not found")

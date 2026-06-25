@@ -198,6 +198,7 @@ def get_trust_level(
     data = dict(row[0]) if row is not None else {}
 
     override = data.get(body.procedure)
+    source: Literal["override", "manifest"]
     if override is not None:
         effective = override
         source = "override"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from limiter import limiter
 from pydantic import BaseModel, Field
@@ -38,7 +38,7 @@ class BarcodeScanRequest(BaseModel):
 @limiter.limit("3/minute")
 def post_scan_receipt(
     request: Request,
-    image: UploadFile = ...,
+    image: UploadFile = File(...),
     idempotency_key: uuid.UUID | None = Form(None),
     token: str = Depends(get_bearer_token),
     db: Session = Depends(get_db),
@@ -136,7 +136,7 @@ def post_confirm_store(
 def post_scan_label(
     request: Request,
     store_id: uuid.UUID = Form(...),
-    image: UploadFile = ...,
+    image: UploadFile = File(...),
     hint: Literal["label", "receipt"] = Form("label"),
     token: str = Depends(get_bearer_token),
     db: Session = Depends(get_db),
@@ -152,7 +152,7 @@ def post_scan_label_batch(
     request: Request,
     user_lat: float = Form(...),
     user_lng: float = Form(...),
-    images: list[UploadFile] = ...,
+    images: list[UploadFile] = File(...),
     hint: Literal["label", "receipt"] = Form("label"),
     token: str = Depends(get_bearer_token),
     db: Session = Depends(get_db),

@@ -20,6 +20,7 @@ from datetime import UTC, date, datetime
 from typing import Any, NamedTuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from ratis_core.database import affected_rows
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -355,7 +356,7 @@ def _debit_cab(db: Session, user_id: uuid.UUID, amount: int, *, reason: str) -> 
         text("UPDATE user_cab_balance SET balance = balance - :amount WHERE user_id = :uid AND balance >= :amount"),
         {"amount": amount, "uid": user_id},
     )
-    if result.rowcount == 0:
+    if affected_rows(result) == 0:
         raise InsufficientBalance("insufficient CAB balance")
     db.execute(
         text(

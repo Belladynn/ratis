@@ -286,6 +286,11 @@ def handle_action(
         )
         return {"event_id": None, "duplicate": True, "status": "duplicate"}
 
+    # _insert_event_row returns event_id=None iff is_duplicate=True (it yields
+    # the fresh row id otherwise). Having returned on the duplicate branch
+    # above, event_id is guaranteed non-None from here on.
+    assert event_id is not None  # non-duplicate path → real inserted row id
+
     # Anti-fraud V1 — shadow-banned users earn nothing on events.
     # The reward_events row already exists for forensics ; we mark it
     # processed so audits know the event was consumed (no double-count

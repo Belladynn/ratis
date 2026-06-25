@@ -22,6 +22,8 @@ from uuid import UUID
 
 from sqlalchemy import text
 
+from ratis_core.database import affected_rows
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -151,4 +153,4 @@ def claim_first_discovery(db: "Session", product_ean: str | None, user_id: UUID 
         _CLAIM_FIRST_DISCOVERY_SQL,
         {"ean": product_ean, "user_id": user_id},
     )
-    return (result.rowcount or 0) > 0
+    return affected_rows(result) > 0

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import random
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -46,7 +47,7 @@ from repositories.missions_repository import (
     insert_user_missions,
 )
 from repositories.xp_repository import award_xp
-from sqlalchemy import text
+from sqlalchemy import Row, text
 from sqlalchemy.orm import Session
 
 # ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ def _buffer_n_max_daily() -> int:
 def _generate_missions_for_user(
     db: Session,
     user_id: uuid.UUID,
-    active_missions: list,
+    active_missions: Sequence[Row[Any]],
     period_start: date,
 ) -> None:
     """Select 1 mission per difficulty (no repeated ``(action_type,

@@ -56,6 +56,9 @@ def compute_summary(db: Session, *, date_from: date, date_to: date) -> dict[str,
         ),
         {"start": start, "end": end},
     ).first()
+    # Aggregate-only SELECT (SUM/COUNT, no GROUP BY) always yields exactly one
+    # row — COALESCE/COUNT give 0 on an empty table, never an empty result set.
+    assert row is not None  # single-row guarantee of the aggregate query
     credit = int(row.total_credit or 0)
     debit = int(row.total_debit or 0)
     return {
@@ -93,7 +96,7 @@ def breakdown_by_reason(db: Session, *, date_from: date, date_to: date) -> list[
             "reason": r.reason,
             "credit_cents": int(r.credit_cents or 0),
             "debit_cents": int(r.debit_cents or 0),
-            "count": int(r.count or 0),
+            "count": int(r._mapping["count"] or 0),
         }
         for r in rows
     ]
@@ -123,7 +126,7 @@ def breakdown_by_day(db: Session, *, date_from: date, date_to: date) -> list[dic
             "day": r.day.isoformat() if r.day else None,
             "credit_cents": int(r.credit_cents or 0),
             "debit_cents": int(r.debit_cents or 0),
-            "count": int(r.count or 0),
+            "count": int(r._mapping["count"] or 0),
         }
         for r in rows
     ]

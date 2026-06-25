@@ -354,6 +354,9 @@ def process_receipt(
                 image_bytes=raw,
             )
             if _phase0_outcome == "reject":
+                # _run_phash_phase_zero contract: outcome "reject" always
+                # carries the lookup ``details`` dict as the payload.
+                assert isinstance(_phase0_payload, dict)
                 logger.info(
                     "Receipt %s rejected by phase 0 pHash (cross-user match) — peer=%s d=%s",
                     receipt_id,
@@ -403,6 +406,10 @@ def process_receipt(
             # if compute failed) — to be persisted alongside the receipt
             # after the orchestrator succeeds. See post-pipeline UPDATE
             # below.
+            # The "reject" branch returned above, so the remaining outcome is
+            # "ok", whose payload is the candidate pHash hex (str) or None —
+            # never the details dict.
+            assert not isinstance(_phase0_payload, dict)
             _candidate_phash_hex: "str | None" = _phase0_payload
             reconciliation_outcome = None
             raw_receipt_text: "str | None" = None

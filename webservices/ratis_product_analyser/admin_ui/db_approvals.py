@@ -469,7 +469,10 @@ async def db_approval_reject(
         return _resume_url_redirect("Proposition déjà traitée — sans effet.")
 
     form = await request.form()
-    reason = (form.get("reason") or "").strip()
+    # ``reason`` is a text form field; Starlette types form.get() as
+    # ``str | UploadFile | None`` — narrow to the str (or empty) case.
+    reason_raw = form.get("reason")
+    reason = (reason_raw if isinstance(reason_raw, str) else "").strip()
     if not reason:
         return _detail_redirect(submission_id, "Un motif de rejet est obligatoire.")
 

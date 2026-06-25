@@ -511,7 +511,7 @@ def _get_async_result(task_id: str):
 # We collapse RETRY/REVOKED into failure (the operator's mental model
 # is "did it complete OK or not"), and STARTED→started so progress is
 # visible during long replays.
-_CELERY_STATE_MAP: dict[str, str] = {
+_CELERY_STATE_MAP: dict[str, Literal["pending", "started", "success", "failure"]] = {
     "PENDING": "pending",
     "STARTED": "started",
     "SUCCESS": "success",

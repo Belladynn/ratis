@@ -174,11 +174,13 @@ extend-immutable-calls = [
 "ratis_core/ratis_core/models/*.py" = ["UP007", "UP045"]
 
 # ---------------------------------------------------------------------------
-# mypy — PERMISSIVE baseline (intentionally).
-# Goal: a GREEN gate that can be ratcheted later (per-module strictness), NOT a
-# strict wall today. Scope is invoked explicitly on the command line / in the
-# pre-commit hook (the 5 services + ratis_core + tools/agent-mcp). `exclude`
-# below removes the noisiest non-product code from any recursive run.
+# mypy — STRICT gate. There is NO `disable_error_code`: every error category
+# (union-attr, arg-type, attr-defined, operator, return-value, call-overload,
+# assignment, index, …) is enforced. Run explicitly over the typed surface
+# (the 5 services + ratis_core + tools/agent-mcp) via scripts/run-mypy.sh;
+# `exclude` below drops generated/boilerplate code. The few remaining
+# `# type: ignore` are narrow, carry their error code, and document a real
+# third-party stub gap (e.g. SQLAlchemy Result.rowcount).
 # ---------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.12"
@@ -186,34 +188,16 @@ warn_unused_configs = true
 # Third-party libs without stubs (paddleocr, pyzbar, osmnx, celery, …) must not
 # fail the gate. Kept global + reinforced per-module below for documentation.
 ignore_missing_imports = true
-# Permissive knobs — explicit so the ratchet path is visible (flip these later).
-check_untyped_defs = false
+# Bodies of unannotated functions are checked; missing-return paths are flagged.
+check_untyped_defs = true
+warn_no_return = true
+# Left OFF deliberately (documented, not hidden): enabling these surfaces ~212
+# annotation-completeness findings (149 no-untyped-def + 63 no-any-return) over
+# a large, partly-unannotated surface — a separate pass, out of scope for the
+# strict-categories gate above, which is what catches the real defects.
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 warn_return_any = false
-warn_no_return = false
-# --- RATCHET LIST -----------------------------------------------------------
-# Adopting mypy on a large, mostly-unannotated codebase: these error CATEGORIES
-# are silenced to reach a GREEN baseline today (120 hits across PA/LO/RW/core).
-# They are annotation-completeness / SQLAlchemy-2.0-stub / Optional-narrowing
-# noise, NOT runtime bugs. Re-enable ONE code at a time (delete it from this
-# list, fix the surfaced errors, commit) to ratchet strictness up over time.
-# Everything NOT listed here stays ON — so the gate still fails on broken
-# imports, undefined names, duplicate defs, bad type syntax, return-outside-def,
-# unreachable type logic, etc. (real-breakage signal kept intact).
-disable_error_code = [
-    "union-attr",      # access on `X | None` w/o narrowing (strict-optional)
-    "arg-type",        # SQLAlchemy Sequence[Row] vs list, Decimal/int mixing
-    "attr-defined",    # SQLAlchemy `Result.rowcount` stub gap + submodule re-exports
-    "operator",        # arithmetic on values mypy widened to `object`
-    "assignment",      # narrowing assignments in partially-typed flows
-    "return-value",    # dynamic Pydantic/`create_model` return shapes
-    "call-overload",   # pydantic.create_model overload resolution
-    "truthy-function", # `if some_callable:` style checks
-    "index",           # indexing values typed as `object`
-    "var-annotated",   # `x = []` needing an explicit element type
-    "misc",            # grab-bag (e.g. `None not callable` on lazy singletons)
-]
 # Migrations are Alembic-generated boilerplate; tests use fixtures/duck-typing.
 # Excluded from the typed surface (re-includable per-module when ratcheting).
 exclude = [

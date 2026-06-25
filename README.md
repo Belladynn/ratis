@@ -180,7 +180,7 @@ Deep-dive: [`tools/agent-mcp/README.md`](tools/agent-mcp/README.md) · [`docs/ar
 | **Infra / DevOps** | Docker (multi-arch amd64 + arm64) · docker-compose · Caddy 2 · Terraform → AWS (ECS Fargate · ALB · RDS · ElastiCache · Secrets Manager) · GitHub Actions |
 | **Mobile** | Expo SDK 54 · React Native · expo-router · React Query · i18next · EAS build / OTA |
 | **Agentic** | Custom MCP (Model Context Protocol) server · docs-RAG · JIT secrets vault · n8n confinement pipeline · prompt-injection defence |
-| **Tooling** | `uv` workspace (single committed lockfile) · Ruff · Bandit · mypy · pytest · Jest · Codecov |
+| **Tooling** | `uv` workspace (single committed lockfile) · Ruff · Bandit · mypy (strict — no `disable_error_code`) · pytest · Jest · Codecov |
 
 ---
 

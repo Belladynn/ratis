@@ -90,6 +90,9 @@ def admin_create_challenge(
             grace_period_days=body.grace_period_days,
         )
     challenge = get_challenge_by_id(db, cid)
+    # The challenge was just created above with this id, so the lookup always
+    # resolves — get_challenge_by_id only returns None for an unknown id.
+    assert challenge is not None  # freshly created above → always found
     return challenge
 
 

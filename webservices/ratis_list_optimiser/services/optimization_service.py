@@ -8,6 +8,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import ratis_core.geo as geo
 from ratis_core.models.analytics import UserPreferences
 from ratis_core.models.product import Product
 from ratis_core.models.shopping import (
@@ -22,7 +23,6 @@ from repositories import price_repository
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ratis_core import geo
 from services.optimization_engine import (
     ItemPrice,
     assign_items_to_stores,
@@ -261,7 +261,7 @@ def _compute_route_data(
 
     # Batch the product-name lookup — one query instead of one per EAN.
     name_rows = db.execute(select(Product.ean, Product.name).where(Product.ean.in_(item_eans))).all()
-    product_names: dict[str, str] = dict(name_rows)
+    product_names: dict[str, str] = {row.ean: row.name for row in name_rows}
 
     stores_data: list[dict] = []
     total_price_cents = 0
@@ -280,7 +280,7 @@ def _compute_route_data(
 
             item_obj = item_map.get(ean)
             price_euros = float(assignment.price) if assignment.price is not None else None
-            price_cents = round(assignment.price * 100) if assignment.price is not None else None
+            assignment_price_cents = round(assignment.price * 100) if assignment.price is not None else None
 
             store_items.append(
                 {
@@ -294,8 +294,8 @@ def _compute_route_data(
                 }
             )
 
-            if price_cents is not None and item_obj:
-                subtotal_cents += round(price_cents * float(item_obj.quantity))
+            if assignment_price_cents is not None and item_obj:
+                subtotal_cents += round(assignment_price_cents * float(item_obj.quantity))
 
             if assignment.source == "national_average":
                 warnings.append({"product_ean": ean, "type": "national_average"})

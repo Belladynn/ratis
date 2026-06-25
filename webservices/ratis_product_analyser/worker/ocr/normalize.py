@@ -133,6 +133,10 @@ def normalize_text(db: Session, scanned_name: str) -> str:
 
         resolved, confidence = _resolve_unknown_token(db, token, ilike_names.get(token.upper()))
         if resolved is not None:
+            # Post-condition of _resolve_unknown_token: a non-None resolution
+            # always carries a non-None confidence (it returns ``(None, None)``
+            # otherwise).
+            assert confidence is not None
             corrected_tokens.append(resolved)
             if resolved.upper() != token.upper():
                 _upsert_knowledge_correction(db, token.upper(), resolved, "token", "ocr_arbitrage", confidence)

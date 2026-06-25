@@ -74,9 +74,9 @@ def _resolve_ean(ocr_result: OcrResult) -> str | None:
 
     # No valid EAN-13 → try EAN-8 (no checksum V1).
     for text, _conf in ocr_result:
-        m = _EAN8_RE.search(text)
-        if m:
-            return m.group(0)
+        m8 = _EAN8_RE.search(text)
+        if m8:
+            return m8.group(0)
     return None
 
 

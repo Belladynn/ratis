@@ -155,7 +155,7 @@ def get_suggestions_default(
     """
     user = get_http_current_user(db, token)
     items = get_default_suggestions(db, user.id, limit=limit)
-    return ProductSearchResponse(items=items)
+    return ProductSearchResponse.model_validate({"items": items})
 
 
 # ── incomplete products queue (declared BEFORE /{ean} to avoid path collision) ─
@@ -188,7 +188,7 @@ def get_incomplete(
     # endpoint behind the JWT wall.
     get_http_current_user(db, token)
     items = list_incomplete_products(db, limit=limit)
-    return IncompleteProductsResponse(items=items)
+    return IncompleteProductsResponse.model_validate({"items": items})
 
 
 # ── favorites (declared BEFORE /{ean} to avoid path collision) ───────────────

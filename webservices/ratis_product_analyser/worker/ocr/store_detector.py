@@ -241,8 +241,12 @@ def extract_store_signals(
 
     # Pass 2: retailer-aware store_code extraction — no fallback
     if _raw_barcode and "retailer" in signals and barcode_formats:
-        # Use only the first word of the retailer, consistent with fingerprint lookup
-        retailer_first_word = signals["retailer"].split()[0]
+        # Use only the first word of the retailer, consistent with fingerprint lookup.
+        # ``signals`` values are only ever assigned non-None strings (the dict type
+        # is ``str | None`` to model "key may be absent", never a stored None).
+        retailer_value = signals["retailer"]
+        assert retailer_value is not None
+        retailer_first_word = retailer_value.split()[0]
         retailer_key = _normalize_retailer_key(retailer_first_word)
         fmt = barcode_formats.get(retailer_key)
         if fmt:

@@ -13,6 +13,7 @@ import uuid
 import sentry_sdk
 from celery.exceptions import Retry
 from ratis_core.database import make_engine
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from worker.celery_app import celery_app
@@ -23,7 +24,7 @@ _MAX_RETRIES = 3
 _RETRY_DELAY_S = 30
 
 
-def _make_session() -> tuple[object, Session]:
+def _make_session() -> tuple[Engine, Session]:
     """Create a disposable engine + session for a worker task."""
     engine = make_engine(os.environ["DATABASE_URL"])
     return engine, Session(engine)

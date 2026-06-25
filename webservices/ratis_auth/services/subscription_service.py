@@ -158,6 +158,10 @@ def create_checkout(
     )
     db.commit()
 
+    if session.url is None:
+        # Stripe populates `url` for hosted checkout sessions; a missing URL here
+        # means an upstream anomaly rather than a normal embedded-session case.
+        raise ValueError("stripe_session_missing_url")
     return session.url
 
 

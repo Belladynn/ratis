@@ -17,6 +17,7 @@ name-completion task.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from ratis_core.settings import load_settings as _load_settings
@@ -63,7 +64,7 @@ _INCOMPLETE_SQL = text(
 )
 
 
-def _query_popular_incomplete_rows(db: Session, limit: int) -> list:
+def _query_popular_incomplete_rows(db: Session, limit: int) -> Sequence[Any]:
     """Return rows of incomplete products ranked by popularity.
 
     Each row exposes ``.ean``, ``.name``, ``.brands_text``,

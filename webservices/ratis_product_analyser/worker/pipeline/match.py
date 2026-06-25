@@ -91,6 +91,7 @@ from worker.pipeline.types import (
     ParsedHeader,
     ParsedItem,
     ParsedTicket,
+    StoreMatchStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -730,7 +731,7 @@ def _match_store(
     log_level: str,
     threshold: float,
     suggest_floor: float,
-) -> tuple[str, UUID | None, str | None]:
+) -> tuple[StoreMatchStatus, UUID | None, str | None]:
     """Return ``(store_status, store_match_id, store_rejected_reason)``.
 
     Resolution priority :

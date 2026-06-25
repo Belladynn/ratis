@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal  # kept for trust_score (NUMERIC) and consensus calculations
 
+import ratis_core.geo as geo
 from ratis_core.consensus import compute_trust_score, find_dominant_price
 from ratis_core.models.price import PriceConsensus, PriceConsensusHistory, PriceConsensusScans
 from ratis_core.models.product import Product
@@ -15,8 +16,6 @@ from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from worker.ocr.normalize import normalize_text
-
-from ratis_core import geo
 
 _CONSENSUS_CFG: dict = load_settings()["consensus"]
 
@@ -474,7 +473,7 @@ def _get_window_scans(db: Session, consensus_id: uuid.UUID, window_size: int) ->
     return [(row.price, row.scanned_at) for row in rows]
 
 
-def _should_freeze(window: list[tuple[Decimal, datetime]], consensus_price: Decimal, now: datetime, cfg: dict) -> bool:
+def _should_freeze(window: list[tuple[int, datetime]], consensus_price: int, now: datetime, cfg: dict) -> bool:
     """Return True if >= freeze_threshold_scans concordant scans occurred in the last 24h."""
     threshold: int = cfg["freeze_threshold_scans"]
     concordant_24h = 0

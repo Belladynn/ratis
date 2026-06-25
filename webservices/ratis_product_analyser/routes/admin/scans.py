@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -245,7 +246,7 @@ def get_receipt_360(
     # ORed so admin events that target a scan but no parsed_ticket are
     # surfaced too.
     scan_ids = [s["id"] for s in scans]
-    audit_rows: list[Any] = []
+    audit_rows: Sequence[Any] = []
     if receipt.parsed_ticket_id is not None or scan_ids:
         audit_rows = db.execute(
             text(

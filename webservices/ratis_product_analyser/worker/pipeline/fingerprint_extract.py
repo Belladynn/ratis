@@ -43,7 +43,7 @@ same components → same fingerprint hash.
 
 from __future__ import annotations
 
-from worker.pipeline.fingerprint import FingerprintComponents
+from worker.pipeline.fingerprint import FingerprintComponents, TimePrecision
 from worker.pipeline.types import MatchedTicket, ParsedTicket
 
 # Payment method normalisation — fold the raw OCR string ("CB", "Espèces",
@@ -139,7 +139,7 @@ def _build_address_normalized(parsed: ParsedTicket) -> str | None:
     return joined or None
 
 
-def _build_iso_time(parsed: ParsedTicket) -> tuple[str | None, str | None]:
+def _build_iso_time(parsed: ParsedTicket) -> tuple[str | None, TimePrecision | None]:
     """Return ``(iso_time, time_precision)`` derived from the parsed footer.
 
     Priority :
