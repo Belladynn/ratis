@@ -250,11 +250,11 @@ All five services share one RSA-signed JWT (`aud=ratis`), connect to Postgres vi
 
 Container-portable by design — the same artifacts run on any host, following a deliberate three-stage path with **zero lock-in** between stages:
 
-1. **Hetzner Cloud VPS** — V0 alpha (x86; PaddlePaddle has no `linux_aarch64` wheel).
+1. **Hetzner Cloud VPS** — V0 alpha, transitory (x86; PaddlePaddle has no `linux_aarch64` wheel).
 2. **Mac mini M4 Pro (self-hosted)** — current development/V0 host, also running the GitHub Actions runners (€0/mo, full control).
-3. **AWS** — Terraform-authored ahead of need (`infra/aws/`, eu-west-3): ECS Fargate + ALB + RDS PostgreSQL 16 + ElastiCache Redis 7 + Secrets Manager, with a reusable `modules/service` instantiated five times, targeting a sub-1-week cutover when the Mac mini saturates.
+3. **AWS** (`infra/aws/`, eu-west-3) — ECS Fargate + ALB + RDS PostgreSQL 16 + ElastiCache Redis 7 + Secrets Manager, with a reusable `modules/service` instantiated five times. **Applied live and validated end-to-end** (a real `terraform apply` stood the full topology up), then torn down to €0 — run **ephemerally, on demand** from the committed IaC, not kept running. Deliberately a representative POC for now (placeholder task images, not hardened — see [ADR-0010](docs/adr/0010-aws-terraform-ahead-of-need.md)); a sub-1-week cutover to the real images is ready when the Mac mini saturates.
 
-Provider versions are pinned and `.terraform.lock.hcl` is committed. The AWS stack is a representative POC (committed, not applied) that mirrors the compose topology one-to-one. → [ADR-0010](docs/adr/0010-aws-terraform-ahead-of-need.md) · [`docs/arch/ARCH_deployment.md`](docs/arch/ARCH_deployment.md) · [`docs/ops/SCALING.md`](docs/ops/SCALING.md).
+Provider versions are pinned and `.terraform.lock.hcl` is committed; the stack mirrors the compose topology one-to-one and is fully reproducible from a single `terraform apply`. → [ADR-0010](docs/adr/0010-aws-terraform-ahead-of-need.md) · [`docs/arch/ARCH_deployment.md`](docs/arch/ARCH_deployment.md) · [`docs/ops/SCALING.md`](docs/ops/SCALING.md).
 
 ---
 
