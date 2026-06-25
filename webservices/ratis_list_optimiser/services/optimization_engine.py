@@ -62,31 +62,31 @@ def assign_items_to_stores(
     assignments: dict[str, StoreAssignment] = {}
 
     for ean in items:
-        best_store = None
-        best_price_data = None
+        best_store: uuid.UUID | None = None
+        best_price_data: ItemPrice | None = None
+        best_price: Decimal | None = None
 
         for store_id in stores:
             key = (store_id, ean)
-            if (
-                key in prices
-                and prices[key].price is not None
-                and (best_price_data is None or prices[key].price < best_price_data.price)
-            ):
+            price_data = prices.get(key)
+            if price_data is None or price_data.price is None:
+                continue
+            if best_price is None or price_data.price < best_price:
                 best_store = store_id
-                best_price_data = prices[key]
+                best_price_data = price_data
+                best_price = price_data.price
 
-        if best_store is not None:
+        if best_store is not None and best_price_data is not None:
             assignments[ean] = StoreAssignment(
                 store_id=best_store,
                 price=best_price_data.price,
                 source=best_price_data.source,
                 trust_score=best_price_data.trust_score,
             )
-        else:
+        elif stores:
             # No price at any store -- assign to first store with unknown price
-            fallback_store = stores[0] if stores else None
             assignments[ean] = StoreAssignment(
-                store_id=fallback_store,
+                store_id=stores[0],
                 price=None,
                 source="unknown",
                 trust_score=None,
@@ -141,13 +141,12 @@ def redistribute_under_threshold(
             best_price = None
             for qstore in qualifying:
                 key = (qstore, ean)
-                if (
-                    key in prices
-                    and prices[key].price is not None
-                    and (best_price is None or prices[key].price < best_price)
-                ):
+                price_data = prices.get(key)
+                if price_data is None or price_data.price is None:
+                    continue
+                if best_price is None or price_data.price < best_price:
                     best_store = qstore
-                    best_price = prices[key].price
+                    best_price = price_data.price
 
             if best_store is not None:
                 assignments[ean] = StoreAssignment(
@@ -210,13 +209,12 @@ def cap_to_max_stores(
         best_price = None
         for kstore in kept:
             key = (kstore, ean)
-            if (
-                key in prices
-                and prices[key].price is not None
-                and (best_price is None or prices[key].price < best_price)
-            ):
+            price_data = prices.get(key)
+            if price_data is None or price_data.price is None:
+                continue
+            if best_price is None or price_data.price < best_price:
                 best_store = kstore
-                best_price = prices[key].price
+                best_price = price_data.price
 
         if best_store is not None:
             capped[ean] = StoreAssignment(

@@ -101,6 +101,10 @@ def _serialize_audit(row: Any, *, include_diff: bool = True) -> dict[str, Any]:
         new_data = redact_for_audit(row.section, row.new_data)
         diff = row.diff
         if diff is None:
+            # admin_settings_audit.new_data is NOT NULL (only old_data is
+            # nullable), so row.new_data — hence redact_for_audit's output —
+            # is never None here; redact only widens to None for None input.
+            assert new_data is not None  # new_data column is NOT NULL
             diff = _shallow_diff(old_data, new_data)
         out["diff"] = diff
         out["old_data"] = old_data

@@ -51,7 +51,7 @@ def _is_numeric(value: object) -> bool:
     return isinstance(value, Real)
 
 
-def _check_pair(old: object, new: object, threshold: float) -> bool:
+def _check_pair(old: float, new: float, threshold: float) -> bool:
     """Return ``True`` if the numeric pair (``old``, ``new``) is a breach.
 
     Pre-condition : both values have already been screened by

@@ -214,4 +214,9 @@ def _correct_brightness(gray: np.ndarray) -> np.ndarray:
     min_val, max_val = int(gray.min()), int(gray.max())
     if max_val - min_val < 10:
         return gray
-    return cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+    # Pre-allocate the destination (same shape/dtype) rather than passing
+    # ``None`` : the cv2 stubs type ``dst`` as a required ``MatLike`` and do
+    # not model the OpenCV ``dst=None`` auto-allocation overload. normalize
+    # overwrites every element, so this is equivalent to the implicit alloc.
+    dst: np.ndarray = np.empty_like(gray)
+    return cv2.normalize(gray, dst, 0, 255, cv2.NORM_MINMAX)

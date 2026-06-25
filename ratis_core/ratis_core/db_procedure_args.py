@@ -63,7 +63,7 @@ def _python_type(pg_type: str) -> type:
     return _PG_TO_PY[norm]
 
 
-def _field_for_arg(arg: ArgSpec) -> tuple[type, Any]:
+def _field_for_arg(arg: ArgSpec) -> tuple[Any, Any]:
     """Retourne (type, Field) à passer à pydantic.create_model.
 
     Required → Field(...) (no default). Optional → Field(None) (default None).
@@ -87,7 +87,10 @@ def _pydantic_model_from_manifest(manifest: ProcedureManifest) -> type[BaseModel
     Le model name est ``Args_<procedure_name>``. Strict mode :
     `extra='forbid'` (argument inconnu → reject).
     """
-    fields: dict[str, tuple[type, Any]] = {arg.name: _field_for_arg(arg) for arg in manifest.args}
+    # dict[str, Any] (not tuple[...]) so create_model's **field_definitions
+    # overload resolves: pydantic's dynamic field spec accepts a (type, Field)
+    # tuple, but its stub types the kwargs as `Any | tuple[str, Any]`.
+    fields: dict[str, Any] = {arg.name: _field_for_arg(arg) for arg in manifest.args}
     model = create_model(
         f"Args_{manifest.name}",
         __config__=ConfigDict(extra="forbid", strict=False),

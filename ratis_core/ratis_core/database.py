@@ -3,7 +3,7 @@ import threading
 from collections.abc import Generator
 from typing import Any
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, Result, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
@@ -21,6 +21,18 @@ def make_engine(url: str, **kwargs: Any) -> Engine:
     kwargs.setdefault("pool_pre_ping", True)
     kwargs.setdefault("pool_recycle", 1800)
     return create_engine(url, **kwargs)
+
+
+def affected_rows(result: Result[Any]) -> int:
+    """Number of rows touched by a DML statement (INSERT/UPDATE/DELETE).
+
+    SQLAlchemy 2.0 types ``Session.execute`` as returning ``Result``, whose
+    stub omits ``rowcount`` — that attribute lives on the runtime
+    ``CursorResult``. This is the single, centralised place that accepts the
+    stub gap, so DML call sites stay fully typed instead of scattering
+    ``# type: ignore`` across every repository.
+    """
+    return result.rowcount  # type: ignore[attr-defined]  # reason: rowcount absent from SQLAlchemy Result stub
 
 
 # Lazy — engine is created on first get_db() call, not at import time.
@@ -48,6 +60,7 @@ def _init() -> None:
 
 def get_db() -> Generator[Session, None, None]:
     _init()
+    assert SessionLocal is not None  # _init() guarantees it is set (or raised)
     db = SessionLocal()
     try:
         yield db

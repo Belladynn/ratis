@@ -119,6 +119,10 @@ def _merge_aligned(p1: OcrResult, p2: OcrResult, p3: OcrResult) -> OcrResult | N
 
         available = [b for b in [b_ref, b1, b2] if b is not None]
         if len(available) == 3:
+            # len(available) == 3 ⟹ all three blocks are non-None (b_ref is
+            # always present; b1/b2 only enter ``available`` when not None).
+            assert b1 is not None
+            assert b2 is not None
             winner = _best_block(b_ref, b1, b2)
             if winner is None:
                 winner = max(available, key=lambda b: b[1])

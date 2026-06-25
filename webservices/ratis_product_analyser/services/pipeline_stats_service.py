@@ -72,6 +72,9 @@ def compute_summary(db: Session, *, date_from: datetime, date_to: datetime) -> d
             "end": date_to,
         },
     ).first()
+    # A GROUP BY-less aggregate (COUNT/COUNT FILTER) always yields exactly
+    # one row, so ``.first()`` is never None here.
+    assert row is not None
     matched = int(row.matched_count or 0)
     unresolved = int(row.unresolved_count or 0)
     rejected = int(row.rejected_count or 0)
@@ -107,7 +110,9 @@ def top_rejected_reasons(
         ),
         {"start": date_from, "end": date_to, "limit": limit},
     ).fetchall()
-    return [{"reason": r.reason, "count": int(r.count or 0)} for r in rows]
+    # ``count`` collides with Row.count() (tuple method) — read the labelled
+    # column via the mapping interface so we get the value, not the method.
+    return [{"reason": r.reason, "count": int(r._mapping["count"] or 0)} for r in rows]
 
 
 def by_match_method(db: Session, *, date_from: datetime, date_to: datetime) -> list[dict[str, Any]]:
@@ -127,7 +132,9 @@ def by_match_method(db: Session, *, date_from: datetime, date_to: datetime) -> l
         ),
         {"start": date_from, "end": date_to},
     ).fetchall()
-    return [{"method": r.method, "count": int(r.count or 0)} for r in rows]
+    # ``count`` collides with Row.count() (tuple method) — read the labelled
+    # column via the mapping interface so we get the value, not the method.
+    return [{"method": r.method, "count": int(r._mapping["count"] or 0)} for r in rows]
 
 
 def by_store_status(db: Session, *, date_from: datetime, date_to: datetime) -> dict[str, int]:
@@ -151,5 +158,7 @@ def by_store_status(db: Session, *, date_from: datetime, date_to: datetime) -> d
     for r in rows:
         if r.store_status is None:
             continue
-        result[r.store_status] = int(r.count or 0)
+        # ``count`` collides with Row.count() (tuple method) — read the labelled
+        # column via the mapping interface so we get the value, not the method.
+        result[r.store_status] = int(r._mapping["count"] or 0)
     return result

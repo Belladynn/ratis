@@ -1465,6 +1465,9 @@ def _record_nrc_ledger(
         return
     if item_match.match_method not in _LEDGER_SAFE_METHODS:
         return
+    # _LEDGER_SAFE_METHODS == frozenset({"barcode"}) — the guard above leaves
+    # only "barcode", which is a valid LedgerMethod for record_resolution.
+    assert item_match.match_method == "barcode"
     if store_id is None or user_id is None:
         return
     normalized_label = parsed_item.normalized_label

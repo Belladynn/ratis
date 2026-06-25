@@ -181,4 +181,7 @@ def get_user_rank(
             {"max_xp": user_max},
         ).first()
 
+    # COUNT(...) + 1 is an aggregate-only SELECT (no GROUP BY) → always exactly
+    # one row, so .first() is never None here.
+    assert rank_row is not None  # single-row guarantee of the COUNT query
     return {"rank": int(rank_row.rank), "max_xp": user_max}

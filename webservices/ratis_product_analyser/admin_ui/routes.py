@@ -93,6 +93,19 @@ ALLOWED_LEVELS = ("verbose", "normal", "production")
 router = APIRouter()
 
 
+def _form_str(form: Any, key: str, default: str = "") -> str:
+    """Read a text form field as ``str``, collapsing missing / non-text values.
+
+    Starlette ``FormData.get`` is typed ``str | UploadFile | None``. The admin
+    UI forms only ever submit text inputs for these fields, so a non-text or
+    empty value collapses to ``default`` — equivalent to the previous
+    ``(form.get(key) or default)`` idiom for the real (str / None) inputs while
+    keeping the static type a plain ``str``.
+    """
+    raw = form.get(key)
+    return raw if isinstance(raw, str) and raw else default
+
+
 # ---------------------------------------------------------------------------
 # Login / Logout
 # ---------------------------------------------------------------------------
@@ -1084,11 +1097,11 @@ async def nrc_resolve_submit(
     - ``redirect_to``      (``"queue"`` default OR ``"detail"`` from detail page)
     """
     form = await request.form()
-    store_id_raw = (form.get("store_id") or "").strip()
-    normalized_label = (form.get("normalized_label") or "").strip()
-    target_ean = (form.get("target_ean") or "").strip()
-    operator_note = (form.get("operator_note") or "").strip() or None
-    redirect_to = form.get("redirect_to") or "queue"
+    store_id_raw = _form_str(form, "store_id").strip()
+    normalized_label = _form_str(form, "normalized_label").strip()
+    target_ean = _form_str(form, "target_ean").strip()
+    operator_note = _form_str(form, "operator_note").strip() or None
+    redirect_to = _form_str(form, "redirect_to", "queue")
 
     try:
         store_id = uuid.UUID(store_id_raw)
@@ -1140,10 +1153,10 @@ async def nrc_reject_challenges_submit(
     is implicit (read from the audit log).
     """
     form = await request.form()
-    store_id_raw = (form.get("store_id") or "").strip()
-    normalized_label = (form.get("normalized_label") or "").strip()
-    operator_note = (form.get("operator_note") or "").strip() or None
-    redirect_to = form.get("redirect_to") or "queue"
+    store_id_raw = _form_str(form, "store_id").strip()
+    normalized_label = _form_str(form, "normalized_label").strip()
+    operator_note = _form_str(form, "operator_note").strip() or None
+    redirect_to = _form_str(form, "redirect_to", "queue")
 
     try:
         store_id = uuid.UUID(store_id_raw)
@@ -1296,7 +1309,7 @@ def _render_settings_detail(
     reason: str | None = None,
     status_code: int = status.HTTP_200_OK,
     pretty_override: str | None = None,
-) -> Response:
+) -> HTMLResponse:
     """Shared helper to render the detail page in a consistent shape."""
     if pretty_override is not None:
         data_pretty = pretty_override
@@ -1659,7 +1672,7 @@ async def settings_save_submit(
 
     form = await request.form()
     raw_data = form.get("data") or ""
-    reason = (form.get("reason") or "").strip()
+    reason = _form_str(form, "reason").strip()
 
     # 1. reason length check (fail-fast before HTTP)
     if len(reason) < 8:
@@ -2444,7 +2457,7 @@ async def challenges_update_action(
     from urllib.parse import quote as _q
 
     form = await request.form()
-    action = (form.get("action") or "").strip().lower()
+    action = _form_str(form, "action").strip().lower()
     if action not in ("activate", "deactivate"):
         return RedirectResponse(
             url=(f"/admin/ui/challenges/{challenge_id}?error={_q('Action inconnue (activate / deactivate attendu).')}"),
@@ -2486,11 +2499,11 @@ async def challenges_milestone_create_action(
     from urllib.parse import quote as _q
 
     form = await request.form()
-    threshold_raw = (form.get("threshold") or "").strip()
-    reward_type = (form.get("reward_type") or "").strip()
-    reward_value_raw = (form.get("reward_value") or "").strip()
-    label = (form.get("label") or "").strip()
-    sort_order_raw = (form.get("sort_order") or "0").strip()
+    threshold_raw = _form_str(form, "threshold").strip()
+    reward_type = _form_str(form, "reward_type").strip()
+    reward_value_raw = _form_str(form, "reward_value").strip()
+    label = _form_str(form, "label").strip()
+    sort_order_raw = _form_str(form, "sort_order", "0").strip()
 
     # Parse reward_value JSON locally — fail-fast before HTTP.
     try:
@@ -2727,6 +2740,8 @@ async def mystery_create_action(
             url=f"/admin/ui/mystery?error={_q(parse_error)}",
             status_code=status.HTTP_303_SEE_OTHER,
         )
+    # _mystery_create_form_body contract: parse_error is None ⟹ body is set.
+    assert body is not None
     resp = await rw_post(
         "/admin/mystery",
         operator=session.operator,

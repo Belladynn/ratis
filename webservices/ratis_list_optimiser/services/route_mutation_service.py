@@ -73,7 +73,10 @@ def move_item_in_route(
         if item_data:
             break
 
-    if item_data is None:
+    # ``source_store`` is set in lockstep with ``item_data`` above, so a missing
+    # item means both are None — the combined guard makes that explicit for the
+    # type checker before ``source_store`` is indexed below.
+    if item_data is None or source_store is None:
         raise ItemNotFoundInRoute(f"Item {item_id} not found in route {route.id}")
 
     # Validate the target store before mutating ``steps`` — fail fast so a
@@ -157,15 +160,19 @@ def remove_store_from_route(
         ean = item["product_ean"]
         best_store = None
         best_price_result = None
+        best_price: float | None = None
 
         for rs in remaining_stores:
             rs_id = uuid.UUID(rs["store_id"])
             pr = resolve_price(db, ean, rs_id)
-            if pr.price is not None and (best_price_result is None or pr.price < best_price_result.price):
+            if pr.price is None:
+                continue
+            if best_price is None or pr.price < best_price:
                 best_store = rs
                 best_price_result = pr
+                best_price = pr.price
 
-        if best_store is None:
+        if best_store is None or best_price_result is None:
             best_store = remaining_stores[0]
             best_price_result = resolve_price(db, ean, uuid.UUID(best_store["store_id"]))
 

@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import math
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -28,7 +30,7 @@ class StoreProximity:
     distance_km: float
 
 
-def _hydrate(db: Session, rows: list) -> list[StoreProximity]:
+def _hydrate(db: Session, rows: Sequence[Any]) -> list[StoreProximity]:
     """Charge les objets Store ORM en préservant l'ordre des `rows`."""
     if not rows:
         return []

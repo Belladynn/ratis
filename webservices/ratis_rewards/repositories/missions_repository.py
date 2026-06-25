@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Sequence
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import Row, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,7 @@ from repositories.exceptions import (
 )
 
 
-def get_active_missions(db: Session, frequency: str) -> list:
+def get_active_missions(db: Session, frequency: str) -> Sequence[Row[Any]]:
     """Return active catalogue missions for a given frequency."""
     return db.execute(
         text(

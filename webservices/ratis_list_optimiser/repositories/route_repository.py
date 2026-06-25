@@ -6,6 +6,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
+from ratis_core.database import affected_rows
 from ratis_core.models.shopping import OptimizedRoute
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -90,7 +91,7 @@ def mark_route_failed(db: Session, route_id: uuid.UUID, reason: str | None = Non
         text("UPDATE optimized_routes SET status = 'failed' WHERE id = :id AND status = 'computing'"),
         {"id": route_id},
     )
-    rowcount = result.rowcount or 0
+    rowcount = affected_rows(result)
     if rowcount:
         logger.info(
             "mark_route_failed: route=%s flipped computing→failed (reason=%s)",

@@ -28,6 +28,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from ratis_core.database import affected_rows
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -495,7 +496,7 @@ def deactivate_challenge(db: Session, challenge_id: uuid.UUID) -> None:
         text("UPDATE community_challenges SET is_active = FALSE WHERE id = :cid"),
         {"cid": challenge_id},
     )
-    if result.rowcount == 0:
+    if affected_rows(result) == 0:
         raise ChallengeNotFound()
 
 

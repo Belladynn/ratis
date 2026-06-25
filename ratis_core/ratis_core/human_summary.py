@@ -53,7 +53,7 @@ def _short_user_id(user_id: str) -> str:
 def _format_french_thousands(n: int) -> str:
     """Formatte un int avec séparateur milliers espace (français)."""
     s = str(abs(int(n)))
-    parts = []
+    parts: list[str] = []
     while len(s) > 3:
         parts.insert(0, s[-3:])
         s = s[:-3]

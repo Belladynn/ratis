@@ -26,6 +26,8 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ratis_core.database import affected_rows
+
 _log = logging.getLogger(__name__)
 
 _DEFAULT_SEED_PATH = Path(__file__).resolve().parent.parent / "config" / "retailers_fr.json"
@@ -140,7 +142,7 @@ def seed_retailers(
                 {"retailer_id": retailer_id, "alias": alias},
             )
             # rowcount = 1 when actually inserted, 0 on conflict.
-            if result.rowcount == 1:
+            if affected_rows(result) == 1:
                 aliases_added += 1
 
     stats = {
