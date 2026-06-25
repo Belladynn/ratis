@@ -29,8 +29,8 @@ dev = [
 seed = [
     "python-barcode>=0.16.1",
 ]
-# Static type-checking toolchain. Installed only where the mypy gate runs
-# (pre-commit local hook + future CI typecheck job). `types-*` are the stub
+# Static type-checking toolchain. Installed where the mypy gate runs: the
+# pre-commit hook and the CI "Typecheck (mypy)" job. `types-*` are the stub
 # packages mypy needs for third-party libs that ship no inline types.
 typecheck = [
     "mypy>=1.18.2",
