@@ -188,9 +188,14 @@ warn_unused_configs = true
 # Third-party libs without stubs (paddleocr, pyzbar, osmnx, celery, …) must not
 # fail the gate. Kept global + reinforced per-module below for documentation.
 ignore_missing_imports = true
-# Bodies of unannotated functions are checked; missing-return paths are flagged.
+# Beyond the strict error categories: untyped function bodies are checked
+# (check_untyped_defs), missing-return paths flagged (warn_no_return), stale
+# `# type: ignore` are errors (warn_unused_ignores — keeps suppressions honest),
+# and `==`/`!=` between non-overlapping types rejected (strict_equality).
 check_untyped_defs = true
 warn_no_return = true
+warn_unused_ignores = true
+strict_equality = true
 # Left OFF deliberately (documented, not hidden): enabling these surfaces ~212
 # annotation-completeness findings (149 no-untyped-def + 63 no-any-return) over
 # a large, partly-unannotated surface — a separate pass, out of scope for the

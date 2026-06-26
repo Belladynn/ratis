@@ -54,13 +54,13 @@ _IGNORED_ERRORS: list[type[BaseException]] = [
 _dedup_cache: dict[str, float] = {}
 
 
-def _make_before_send(dedup_ttl: float):  # type: ignore[return]
+def _make_before_send(dedup_ttl: float):
     """Return a before_send hook that:
     - drops HTTP 4xx client errors (not actionable bugs)
     - deduplicates identical errors within dedup_ttl seconds
     """
 
-    def before_send(event: dict, hint: dict) -> dict | None:  # type: ignore[return]
+    def before_send(event: dict, hint: dict) -> dict | None:
         exc_info = hint.get("exc_info")
         if exc_info is None:
             return event
@@ -154,7 +154,7 @@ def init_langfuse(service_name: str) -> None:
 
     try:
         from langfuse import get_client
-        from opentelemetry.instrumentation.anthropic import (  # type: ignore[import-untyped]
+        from opentelemetry.instrumentation.anthropic import (
             AnthropicInstrumentor,
         )
     except ImportError:
@@ -201,7 +201,7 @@ def init_sentry(service_name: str) -> None:
         return
 
     try:
-        import sentry_sdk  # type: ignore[import-untyped]
+        import sentry_sdk
     except ImportError:
         logger.warning(
             "SENTRY_DSN is set but sentry-sdk is not installed in %s — Sentry disabled",

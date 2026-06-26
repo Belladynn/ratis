@@ -252,7 +252,7 @@ def _build_metadata(name: str, bucket: Bucket, path: Path) -> SkillMetadata:
     roi_raw = fm.get("roi_verdict")
     roi_verdict: RoiVerdict | None = None
     if roi_raw in ("promote", "review", "archive"):
-        roi_verdict = roi_raw  # type: ignore[assignment]
+        roi_verdict = roi_raw
     source_session = fm.get("source_session")
     generated_by = fm.get("generated_by")
     excerpt = body.strip()[:_BODY_EXCERPT_LEN]

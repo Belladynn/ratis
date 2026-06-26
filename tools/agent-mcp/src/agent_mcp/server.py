@@ -195,7 +195,7 @@ def _build_input_schema(fn: ToolImpl) -> dict[str, Any]:
         return {"type": "object", "properties": {}, "additionalProperties": False}
 
     try:
-        model = create_model(f"{fn.__name__}_input", **fields)  # type: ignore[call-overload]
+        model = create_model(f"{fn.__name__}_input", **fields)
         schema = model.model_json_schema()
         # Pydantic emits `$defs`/`title` etc. — keep them, MCP SDK is fine with extras.
         return schema
@@ -318,7 +318,7 @@ class Dispatcher:
         try:
             value = entry.fn(**(arguments or {}))
             if inspect.isawaitable(value):
-                value = await value  # type: ignore[assignment]
+                value = await value
         except AgentMcpError as exc:
             return self._finish(
                 caller=caller,

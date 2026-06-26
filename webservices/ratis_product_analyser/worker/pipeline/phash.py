@@ -32,7 +32,7 @@ from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 
 try:  # Optional at import time so tests that don't exercise pHash work
-    import imagehash  # type: ignore[import-untyped]
+    import imagehash
 except ImportError:  # pragma: no cover — declared in pyproject deps
     imagehash = None  # type: ignore[assignment]
 

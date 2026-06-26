@@ -266,7 +266,7 @@ def _run_pyzbar(
     (already decoded by :func:`_decode_image`) to keep the dependency
     surface small (no Pillow at runtime).
     """
-    from pyzbar import pyzbar  # type: ignore[import-untyped]  # lazy
+    from pyzbar import pyzbar  # lazy
 
     image = _decode_image(image_bytes)
     try:
@@ -333,7 +333,7 @@ def _get_ocr_engine_version() -> str:
     runtime.
     """
     try:
-        import paddleocr  # type: ignore[import-untyped]  # lazy
+        import paddleocr  # lazy
 
         version = getattr(paddleocr, "__version__", "unknown")
         return f"paddleocr-{version}-fr"
