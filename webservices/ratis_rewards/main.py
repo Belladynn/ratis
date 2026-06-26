@@ -74,7 +74,7 @@ _OUTBOX_INTERVAL_SECONDS = 30
 
 def _process_outbox_sync() -> None:
     """Synchronous helper — runs in the thread-pool executor."""
-    from ratis_core.database import SessionLocal, _init  # type: ignore[attr-defined]
+    from ratis_core.database import SessionLocal, _init
 
     _init()
     db = SessionLocal()

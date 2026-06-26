@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
-from pyzbar import pyzbar  # type: ignore[import-untyped]
+from pyzbar import pyzbar
 from ratis_core.settings import load_settings
 
 from worker.ocr.preprocessor import (

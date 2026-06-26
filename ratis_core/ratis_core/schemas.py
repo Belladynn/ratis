@@ -97,7 +97,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"  # noqa: S105 — OAuth token type, not a secret
     expires_in: int  # seconds until access token expiry — client should refresh 2 min before
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def expires_at(self) -> datetime:
         """Absolute UTC expiry timestamp — convenience for clients that prefer absolute time."""

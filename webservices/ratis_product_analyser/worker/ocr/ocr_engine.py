@@ -67,7 +67,7 @@ class PaddleOcrEngine:
 
     def __init__(self) -> None:
         try:
-            from paddleocr import PaddleOCR  # type: ignore[import-untyped]
+            from paddleocr import PaddleOCR
         except ImportError as exc:
             raise RuntimeError("paddleocr is not installed. Install paddlepaddle-cpu and paddleocr.") from exc
         self._ocr = PaddleOCR(use_angle_cls=True, lang="fr", show_log=False)
@@ -102,7 +102,7 @@ class PaddleOcrEngine:
                 RichOcrBlock(
                     text=text,
                     confidence=float(conf),
-                    bbox=bbox_tuple,  # type: ignore[arg-type]
+                    bbox=bbox_tuple,
                 )
             )
         return result
