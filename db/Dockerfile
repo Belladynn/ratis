@@ -5,7 +5,7 @@
 # Base pinned by digest (Dependabot package-ecosystem: docker bumps it). The
 # upstream postgres image already runs as the unprivileged `postgres` user and
 # drops privileges via its entrypoint — we keep that USER semantics untouched.
-FROM postgres:16@sha256:a4f57f2c250b724a6fb1d41892b177f886ec282be6286c5bfc2afc9f546bb59d
+FROM postgres:18@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636
 # DL3008: postgis version intentionally unpinned — it tracks the postgres:16 base,
 # which is digest-pinned here (freezing the apt snapshot); Dependabot bumps the digest.
 # hadolint ignore=DL3008
